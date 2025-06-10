@@ -104,44 +104,81 @@ export default function Home() {
                 // 克隆元素及其内容
                 const elementClone = element.cloneNode(true) as HTMLElement;
                 
-                // 保留原始样式
-                const originalStyles = window.getComputedStyle(element);
-                const stylesToCopy = [
-                  'background', 'background-color', 'color', 'font-family', 
-                  'font-size', 'padding', 'margin', 'border', 'border-radius',
-                  'box-shadow', 'text-align', 'line-height', 'width', 'height'
-                ];
-
-                // 创建一个包装器来维持布局
+                // 先获取所有计算样式
+                const computedStyles = window.getComputedStyle(element);
+                
+                // 处理 header 元素的特殊情况
+                if (element.classList.contains('header')) {
+                  // 保持渐变背景
+                  const background = computedStyles.getPropertyValue('background');
+                  elementClone.style.background = background;
+                  
+                  // 确保装饰元素正确定位
+                  const decorElements = elementClone.getElementsByClassName('flower-decor');
+                  if (decorElements.length > 0 && decorElements[0] instanceof HTMLElement) {
+                    const decor = decorElements[0] as HTMLElement;
+                    decor.style.position = 'absolute';
+                    decor.style.right = '20px';
+                    decor.style.top = '20px';
+                    decor.style.opacity = '0.15';
+                  }
+                  
+                  // 确保内容元素正确定位
+                  const contentElements = elementClone.getElementsByClassName('header-content');
+                  if (contentElements.length > 0 && contentElements[0] instanceof HTMLElement) {
+                    const content = contentElements[0] as HTMLElement;
+                    content.style.position = 'relative';
+                    content.style.zIndex = '2';
+                  }
+                }
+                
+                // 创建包装容器
                 const wrapper = document.createElement('div');
                 wrapper.style.width = '100%';
-
-                // 将所有计算样式应用到克隆元素
-                stylesToCopy.forEach(style => {
-                  elementClone.style.setProperty(style, originalStyles.getPropertyValue(style));
+                
+                // 复制原始元素的尺寸
+                const rect = element.getBoundingClientRect();
+                elementClone.style.width = rect.width + 'px';
+                elementClone.style.height = rect.height + 'px';
+                
+                // 复制所有重要的样式属性
+                [
+                  'padding', 'margin', 'border', 'border-radius',
+                  'box-shadow', 'color', 'font-family', 'font-size',
+                  'line-height', 'text-align', 'background', 'position',
+                  'display', 'align-items', 'justify-content',
+                  'flex-direction', 'gap'
+                ].forEach(prop => {
+                  const value = computedStyles.getPropertyValue(prop);
+                  if (value) elementClone.style.setProperty(prop, value);
                 });
-
-                // 保持内部元素的样式
-                const applyStylesToChildren = (parent: Element, parentOriginal: Element) => {
-                  const children = Array.from(parent.children);
-                  const originalChildren = Array.from(parentOriginal.children);
-                  
-                  children.forEach((child, index) => {
-                    if (child instanceof HTMLElement && originalChildren[index] instanceof HTMLElement) {
-                      const originalChild = originalChildren[index] as HTMLElement;
-                      const originalChildStyles = window.getComputedStyle(originalChild);
+                
+                // 处理子元素
+                const processChildren = (parent: Element, clone: Element) => {
+                  Array.from(parent.children).forEach((child, index) => {
+                    if (child instanceof HTMLElement && clone.children[index] instanceof HTMLElement) {
+                      const childClone = clone.children[index] as HTMLElement;
+                      const childStyles = window.getComputedStyle(child);
                       
-                      stylesToCopy.forEach(style => {
-                        child.style.setProperty(style, originalChildStyles.getPropertyValue(style));
+                      // 复制子元素的样式
+                      [
+                        'position', 'top', 'left', 'right', 'bottom',
+                        'width', 'height', 'padding', 'margin', 'color',
+                        'font-size', 'font-weight', 'line-height',
+                        'text-align', 'background', 'z-index',
+                        'display', 'align-items', 'opacity'
+                      ].forEach(prop => {
+                        const value = childStyles.getPropertyValue(prop);
+                        if (value) childClone.style.setProperty(prop, value);
                       });
                       
-                      // 递归处理子元素
-                      applyStylesToChildren(child, originalChild);
+                      // 递归处理更深层级的子元素
+                      processChildren(child, childClone);
                     }
                   });
                 };
-
-                applyStylesToChildren(elementClone, element);
+                
+                processChildren(element, elementClone);
                 wrapper.appendChild(elementClone);
                 container.appendChild(wrapper);
               }
@@ -212,30 +249,59 @@ export default function Home() {
       `;
       exportContainer.innerHTML = element.innerHTML;
 
-      // 复制所有样式
-      const copyStyles = (sourceElement: HTMLElement, targetElement: HTMLElement) => {
-        const computedStyle = window.getComputedStyle(sourceElement);
-        Array.from(computedStyle).forEach(key => {
-          targetElement.style.setProperty(key, computedStyle.getPropertyValue(key));
-        });
-
-        Array.from(sourceElement.children).forEach((child, index) => {
-          if (child instanceof HTMLElement && 
-              targetElement.children[index] instanceof HTMLElement) {
-            copyStyles(child, targetElement.children[index] as HTMLElement);
+      // 修复渐变背景和布局
+      const headers = exportContainer.getElementsByClassName('header');
+      Array.from(headers).forEach(header => {
+        if (header instanceof HTMLElement) {
+          header.style.background = 'linear-gradient(120deg, #405de6, #5851db, #833ab4, #c13584, #e1306c, #fd1d1d)';
+          header.style.position = 'relative';
+          header.style.overflow = 'hidden';
+          
+          const decorElements = header.getElementsByClassName('flower-decor');
+          if (decorElements.length > 0 && decorElements[0] instanceof HTMLElement) {
+            const decor = decorElements[0] as HTMLElement;
+            decor.style.position = 'absolute';
+            decor.style.right = '20px';
+            decor.style.top = '20px';
+            decor.style.opacity = '0.15';
           }
-        });
-      };
+          
+          const contentElements = header.getElementsByClassName('header-content');
+          if (contentElements.length > 0 && contentElements[0] instanceof HTMLElement) {
+            const content = contentElements[0] as HTMLElement;
+            content.style.position = 'relative';
+            content.style.zIndex = '2';
+          }
+        }
+      });
 
       document.body.appendChild(exportContainer);
-      copyStyles(element, exportContainer);
 
       // 使用更高的比例以获得更好的质量
       const canvas = await html2canvas(exportContainer, {
         scale: 2,
         useCORS: true,
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        onclone: (doc) => {
+          // 确保所有样式都被正确应用
+          const copyStyles = (source: HTMLElement, target: HTMLElement) => {
+            const styles = window.getComputedStyle(source);
+            Array.from(styles).forEach(key => {
+              target.style.setProperty(key, styles.getPropertyValue(key));
+            });
+          };
+
+          const sourceElements = doc.getElementsByTagName('*');
+          Array.from(sourceElements).forEach(el => {
+            if (el instanceof HTMLElement) {
+              const computed = window.getComputedStyle(el);
+              copyStyles(el, el);
+              el.style.transform = 'none';
+              el.style.transition = 'none';
+            }
+          });
+        }
       });
 
       document.body.removeChild(exportContainer);
