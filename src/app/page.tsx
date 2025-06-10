@@ -24,28 +24,62 @@ export default function Home() {
   };
 
   const extractElements = (container: HTMLElement, className: string) => {
+    if (!className.trim()) {
+      return container.innerHTML;
+    }
+
     const elements = container.getElementsByClassName(className);
     if (elements.length === 0) {
-      // 如果没有找到指定类名的元素，返回整个容器的内容
+      console.warn(`没有找到类名为 "${className}" 的元素，将导出所有内容`);
       return container.innerHTML;
     }
     
-    // 创建一个临时容器来存放提取的元素
-    const tempContainer = document.createElement('div');
-    Array.from(elements).forEach(element => {
-      // 克隆节点以保留所有属性和样式
-      const clone = element.cloneNode(true) as HTMLElement;
-      // 获取计算后的样式
-      const computedStyle = window.getComputedStyle(element as HTMLElement);
-      // 将计算后的样式应用到克隆节点
-      Object.values(computedStyle).forEach(property => {
-        if (property !== '') {
-          clone.style[property as any] = computedStyle.getPropertyValue(property);
+    // 创建包装容器来保持布局结构
+    const wrapperDiv = document.createElement('div');
+    wrapperDiv.style.cssText = `
+      width: 100%;
+      background: #ffffff;
+      padding: 20px;
+      box-sizing: border-box;
+    `;
+
+    // 处理计算样式的函数
+    const computeStyles = (element: HTMLElement) => {
+      const computedStyle = window.getComputedStyle(element);
+      const properties = [
+        'color', 'background', 'background-color', 'padding', 'margin',
+        'border', 'width', 'height', 'font-size', 'font-family',
+        'font-weight', 'text-align', 'display', 'flex-direction',
+        'justify-content', 'align-items', 'gap', 'position',
+        'box-shadow', 'border-radius', 'line-height', 'letter-spacing'
+      ];
+
+      let styles = '';
+      properties.forEach(prop => {
+        const value = computedStyle.getPropertyValue(prop);
+        if (value && value !== '') {
+          styles += `${prop}: ${value}; `;
         }
       });
-      tempContainer.appendChild(clone);
+      return styles;
+    };
+
+    // 递归处理元素的所有子元素
+    const processElement = (element: Element) => {
+      if (element instanceof HTMLElement) {
+        const styles = computeStyles(element);
+        element.style.cssText += styles;
+      }
+      Array.from(element.children).forEach(processElement);
+    };
+
+    Array.from(elements).forEach(element => {
+      const clone = element.cloneNode(true) as HTMLElement;
+      processElement(clone);
+      wrapperDiv.appendChild(clone);
     });
-    return tempContainer.innerHTML;
+
+    return wrapperDiv.outerHTML;
   };
 
   const generateStaticHtml = async () => {
@@ -53,46 +87,9 @@ export default function Home() {
     try {
       setLoading(true);
       
-      // 创建一个新的div来处理内容
-      const tempDiv = document.createElement('div');
       // 提取指定类名的元素
       const extractedHtml = extractElements(previewRef.current, targetClass);
-      tempDiv.innerHTML = extractedHtml;
       
-      // 内联所有可计算的样式
-      const processElement = (element: Element) => {
-        if (element instanceof HTMLElement) {
-          const computedStyle = window.getComputedStyle(element);
-          let styles = element.getAttribute('style') || '';
-          
-          // 添加计算后的样式
-          const importantProperties = [
-            'color', 'background-color', 'padding', 'margin',
-            'border', 'width', 'height', 'font-size',
-            'font-family', 'font-weight', 'text-align',
-            'display', 'flex-direction', 'justify-content',
-            'align-items', 'gap', 'position'
-          ];
-
-          importantProperties.forEach(prop => {
-            const value = computedStyle.getPropertyValue(prop);
-            if (value) {
-              styles += `${prop}: ${value}; `;
-            }
-          });
-
-          if (styles) {
-            element.setAttribute('style', styles);
-          }
-        }
-
-        // 递归处理子元素
-        Array.from(element.children).forEach(processElement);
-      };
-
-      // 处理所有元素
-      processElement(tempDiv);
-
       // 格式化HTML
       const beautifyHtml = (html: string) => {
         return html
@@ -104,11 +101,7 @@ export default function Home() {
           .join('\n');
       };
 
-      const staticHtml = `<div style="width: 100%; height: 100%; background: #ffffff;">
-${beautifyHtml(tempDiv.innerHTML)}
-</div>`;
-
-      setHtmlCode(staticHtml);
+      setHtmlCode(beautifyHtml(extractedHtml));
     } catch (error) {
       console.error('生成静态HTML失败:', error);
       alert('生成静态HTML时发生错误。');
@@ -122,60 +115,48 @@ ${beautifyHtml(tempDiv.innerHTML)}
     try {
       setLoading(true);
 
-      // 创建一个临时容器
+      // 创建临时容器
       const container = document.createElement('div');
-      container.style.width = '800px';
-      container.style.padding = '20px';
-      container.style.background = 'white';
+      container.style.cssText = `
+        width: 800px;
+        padding: 20px;
+        background: white;
+        margin: 0 auto;
+      `;
       
       // 提取指定类名的元素
       const extractedHtml = extractElements(previewRef.current, targetClass);
       container.innerHTML = extractedHtml;
       
+      // 添加到body并等待样式应用
       document.body.appendChild(container);
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-      // 转换为canvas
-      const canvas = await html2canvas(container, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-      });
+      try {
+        // 转换为canvas
+        const canvas = await html2canvas(container, {
+          scale: 2,
+          useCORS: true,
+          logging: true,
+          backgroundColor: '#ffffff'
+        });
 
-      // 删除临时容器
-      document.body.removeChild(container);
-
-      // 计算PDF尺寸（A4）
-      const imgWidth = 210;
-      const pageHeight = 297;
-      const imgHeight = canvas.height * imgWidth / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-      
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      let firstPage = true;
-
-      while (heightLeft >= 0) {
-        if (!firstPage) {
-          pdf.addPage();
-        }
+        // 计算PDF尺寸（A4）
+        const imgWidth = 210; // A4 宽度（mm）
+        const pageHeight = 297; // A4 高度（mm）
+        const imgHeight = canvas.height * imgWidth / canvas.width;
         
-        const imgData = canvas.toDataURL('image/jpeg', 1.0);
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, '', 'FAST');
-        
-        heightLeft -= pageHeight;
-        position -= pageHeight;
-        firstPage = false;
-        
-        if (heightLeft < pageHeight) {
-          break;
-        }
+        // 创建PDF
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, imgWidth, imgHeight);
+        pdf.save('exported.pdf');
+      } finally {
+        // 确保临时容器被删除
+        document.body.removeChild(container);
       }
-
-      pdf.save('exported.pdf');
-    } catch (error) {
+    } catch (error: any) {
       console.error('导出PDF失败:', error);
-      alert('导出PDF时发生错误，请检查HTML代码是否正确。');
+      alert('导出PDF时发生错误：' + (error?.message || '未知错误'));
     } finally {
       setLoading(false);
     }
