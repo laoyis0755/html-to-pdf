@@ -2,6 +2,9 @@
 const nextConfig = {
   output: 'export',
   basePath: '/html-to-pdf',
+  images: {
+    unoptimized: true
+  },
   webpack: (config, { isServer }) => {
     // 添加对特定模块的支持
     config.resolve.fallback = {
