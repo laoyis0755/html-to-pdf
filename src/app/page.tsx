@@ -84,24 +84,8 @@ export default function Home() {
       requestAnimationFrame(() => {
         try {
           if (!previewClass) {
-            // 直接克隆整个代码内容，不需要特殊处理
+            // 完整预览模式
             previewRef.current!.innerHTML = code;
-            
-            // 处理完整预览中的所有元素样式
-            const elements = previewRef.current!.getElementsByTagName('*');
-            Array.from(elements).forEach(el => {
-              if (el instanceof HTMLElement) {
-                // 应用计算后的样式
-                const computed = window.getComputedStyle(el);
-                // 特别关注的样式属性
-                ['margin', 'padding', 'border', 'background', 'color', 
-                 'font-family', 'font-size', 'line-height', 'box-shadow', 
-                 'border-radius'].forEach(prop => {
-                  el.style.setProperty(prop, computed.getPropertyValue(prop), 
-                    computed.getPropertyPriority(prop));
-                });
-              }
-            });
           } else {
             const targetElements = sandbox.getElementsByClassName(previewClass);
             if (targetElements.length === 0) {
@@ -112,55 +96,53 @@ export default function Home() {
             const container = document.createElement('div');
             container.style.display = 'flex';
             container.style.flexDirection = 'column';
-            container.style.gap = '10px';
+            container.style.gap = '20px';
 
-            // 获取每个目标元素的完整上下文
+            // 获取每个目标元素
             Array.from(targetElements).forEach(element => {
               if (element instanceof HTMLElement) {
-                // 创建一个包装容器来保持布局上下文
+                // 克隆元素及其内容
+                const elementClone = element.cloneNode(true) as HTMLElement;
+                
+                // 保留原始样式
+                const originalStyles = window.getComputedStyle(element);
+                const stylesToCopy = [
+                  'background', 'background-color', 'color', 'font-family', 
+                  'font-size', 'padding', 'margin', 'border', 'border-radius',
+                  'box-shadow', 'text-align', 'line-height', 'width', 'height'
+                ];
+
+                // 创建一个包装器来维持布局
                 const wrapper = document.createElement('div');
-                wrapper.style.position = 'relative';
                 wrapper.style.width = '100%';
-                
-                // 计算元素的原始尺寸和位置
-                const originalRect = element.getBoundingClientRect();
-                const clonedElement = element.cloneNode(true) as HTMLElement;
-                
-                // 重置可能影响布局的样式
-                clonedElement.style.position = 'relative';
-                clonedElement.style.top = 'auto';
-                clonedElement.style.left = 'auto';
-                clonedElement.style.margin = '0';
-                clonedElement.style.width = originalRect.width + 'px';
-                
-                // 复制计算样式
-                processElement(element, clonedElement);
-                
-                // 处理子元素的定位
-                const processChildrenPositioning = (parent: HTMLElement, clone: HTMLElement) => {
-                  Array.from(parent.children).forEach((child, index) => {
-                    if (child instanceof HTMLElement && clone.children[index] instanceof HTMLElement) {
-                      const childClone = clone.children[index] as HTMLElement;
-                      const childRect = child.getBoundingClientRect();
-                      const parentRect = parent.getBoundingClientRect();
+
+                // 将所有计算样式应用到克隆元素
+                stylesToCopy.forEach(style => {
+                  elementClone.style.setProperty(style, originalStyles.getPropertyValue(style));
+                });
+
+                // 保持内部元素的样式
+                const applyStylesToChildren = (parent: Element, parentOriginal: Element) => {
+                  const children = Array.from(parent.children);
+                  const originalChildren = Array.from(parentOriginal.children);
+                  
+                  children.forEach((child, index) => {
+                    if (child instanceof HTMLElement && originalChildren[index] instanceof HTMLElement) {
+                      const originalChild = originalChildren[index] as HTMLElement;
+                      const originalChildStyles = window.getComputedStyle(originalChild);
                       
-                      // 保持子元素的相对位置
-                      const relativeTop = childRect.top - parentRect.top;
-                      const relativeLeft = childRect.left - parentRect.left;
+                      stylesToCopy.forEach(style => {
+                        child.style.setProperty(style, originalChildStyles.getPropertyValue(style));
+                      });
                       
-                      childClone.style.position = 'absolute';
-                      childClone.style.top = relativeTop + 'px';
-                      childClone.style.left = relativeLeft + 'px';
-                      childClone.style.width = childRect.width + 'px';
-                      childClone.style.height = childRect.height + 'px';
-                      
-                      processChildrenPositioning(child, childClone);
+                      // 递归处理子元素
+                      applyStylesToChildren(child, originalChild);
                     }
                   });
                 };
-                
-                wrapper.appendChild(clonedElement);
-                processChildrenPositioning(element, clonedElement);
+
+                applyStylesToChildren(elementClone, element);
+                wrapper.appendChild(elementClone);
                 container.appendChild(wrapper);
               }
             });
@@ -219,44 +201,47 @@ export default function Home() {
 
       // 创建一个新的容器用于导出
       const exportContainer = document.createElement('div');
-      exportContainer.style.background = '#ffffff';
-      exportContainer.style.width = '800px'; // 固定宽度以确保一致性
-      exportContainer.style.padding = '20px';
-      exportContainer.style.position = 'absolute';
-      exportContainer.style.left = '-9999px';
+      exportContainer.style.cssText = `
+        background: #ffffff;
+        width: 800px;
+        padding: 20px;
+        position: fixed;
+        top: 0;
+        left: -9999px;
+        font-family: Arial, sans-serif;
+      `;
       exportContainer.innerHTML = element.innerHTML;
 
+      // 复制所有样式
+      const copyStyles = (sourceElement: HTMLElement, targetElement: HTMLElement) => {
+        const computedStyle = window.getComputedStyle(sourceElement);
+        Array.from(computedStyle).forEach(key => {
+          targetElement.style.setProperty(key, computedStyle.getPropertyValue(key));
+        });
+
+        Array.from(sourceElement.children).forEach((child, index) => {
+          if (child instanceof HTMLElement && 
+              targetElement.children[index] instanceof HTMLElement) {
+            copyStyles(child, targetElement.children[index] as HTMLElement);
+          }
+        });
+      };
+
       document.body.appendChild(exportContainer);
+      copyStyles(element, exportContainer);
 
       // 使用更高的比例以获得更好的质量
       const canvas = await html2canvas(exportContainer, {
         scale: 2,
         useCORS: true,
         logging: false,
-        backgroundColor: '#ffffff',
-        allowTaint: true,
-        foreignObjectRendering: true,
-        // 确保渲染所有背景
-        onclone: (doc) => {
-          const elements = doc.getElementsByTagName('*');
-          for (let i = 0; i < elements.length; i++) {
-            const el = elements[i] as HTMLElement;
-            const computed = window.getComputedStyle(el);
-            el.style.background = computed.background;
-          }
-        }
+        backgroundColor: '#ffffff'
       });
 
-      // 移除临时容器
       document.body.removeChild(exportContainer);
 
       const imgData = canvas.toDataURL('image/jpeg', 1.0);
-      const pdf = new jsPDF({
-        orientation: 'p',
-        unit: 'mm',
-        format: 'a4',
-        compress: true
-      });
+      const pdf = new jsPDF('p', 'mm', 'a4');
       
       const pageWidth = 210; // A4 宽度(mm)
       const pageHeight = 297; // A4 高度(mm)
@@ -267,16 +252,14 @@ export default function Home() {
       
       let heightLeft = imgHeight;
       let position = 0;
-      let page = 1;
 
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, '', 'FAST');
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
 
       while (heightLeft >= pageHeight) {
-        position = -pageHeight * page;
-        page++;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, '', 'FAST');
+        position = -pageHeight;
         heightLeft -= pageHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
       }
 
       pdf.save('exported.pdf');
