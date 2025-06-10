@@ -1,0 +1,19 @@
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'export',
+  basePath: '/html-to-pdf',
+  webpack: (config, { isServer }) => {
+    // 添加对特定模块的支持
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      canvas: false,
+    };
+
+    return config;
+  },
+  experimental: {
+    turbo: false
+  }
+};
+
+module.exports = nextConfig;
