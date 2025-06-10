@@ -74,10 +74,71 @@ export default function Home() {
       return;
     }
     
-    // 创建预览容器
+    // 创建预览容器并保持样式上下文
     const previewContainer = document.createElement('div');
     Array.from(elements).forEach(element => {
-      previewContainer.appendChild(element.cloneNode(true));
+      // 获取元素的所有父级样式
+      let currentElem = element as HTMLElement;
+      const parentStyles: string[] = [];
+      while (currentElem.parentElement && currentElem.parentElement !== tempDiv) {
+        const computedStyle = window.getComputedStyle(currentElem.parentElement);
+        const relevantStyles = [
+          'background', 'background-color', 'padding', 'margin',
+          'border', 'display', 'flex-direction', 'justify-content',
+          'align-items', 'gap', 'position', 'width', 'height'
+        ];
+        let styles = '';
+        relevantStyles.forEach(prop => {
+          const value = computedStyle.getPropertyValue(prop);
+          if (value && value !== '') {
+            styles += `${prop}: ${value}; `;
+          }
+        });
+        parentStyles.unshift(styles);
+        currentElem = currentElem.parentElement;
+      }
+
+      // 创建嵌套的div结构来模拟父级样式
+      let currentContainer = previewContainer;
+      parentStyles.forEach(style => {
+        const parentDiv = document.createElement('div');
+        parentDiv.style.cssText = style;
+        currentContainer.appendChild(parentDiv);
+        currentContainer = parentDiv;
+      });
+
+      // 克隆目标元素及其样式
+      const clone = element.cloneNode(true) as HTMLElement;
+      const elementComputedStyle = window.getComputedStyle(element as HTMLElement);
+      let elementStyles = '';
+      Array.from(elementComputedStyle).forEach(prop => {
+        const value = elementComputedStyle.getPropertyValue(prop);
+        if (value && value !== '') {
+          elementStyles += `${prop}: ${value}; `;
+        }
+      });
+      clone.style.cssText = elementStyles;
+
+      // 递归处理子元素样式
+      const processChildStyles = (parent: Element) => {
+        Array.from(parent.children).forEach(child => {
+          if (child instanceof HTMLElement) {
+            const childStyle = window.getComputedStyle(child);
+            let childStyles = '';
+            Array.from(childStyle).forEach(prop => {
+              const value = childStyle.getPropertyValue(prop);
+              if (value && value !== '') {
+                childStyles += `${prop}: ${value}; `;
+              }
+            });
+            child.style.cssText = childStyles;
+            processChildStyles(child);
+          }
+        });
+      };
+      processChildStyles(clone);
+
+      currentContainer.appendChild(clone);
     });
     
     previewRef.current.innerHTML = previewContainer.innerHTML;
@@ -107,7 +168,7 @@ export default function Home() {
       return container.innerHTML;
     }
     
-    // 创建包装容器来保持布局结构
+    // 创建包装容器
     const wrapperDiv = document.createElement('div');
     wrapperDiv.style.cssText = `
       width: 100%;
@@ -116,40 +177,69 @@ export default function Home() {
       box-sizing: border-box;
     `;
 
-    // 处理计算样式的函数
-    const computeStyles = (element: HTMLElement) => {
-      const computedStyle = window.getComputedStyle(element);
-      const properties = [
-        'color', 'background', 'background-color', 'padding', 'margin',
-        'border', 'width', 'height', 'font-size', 'font-family',
-        'font-weight', 'text-align', 'display', 'flex-direction',
-        'justify-content', 'align-items', 'gap', 'position',
-        'box-shadow', 'border-radius', 'line-height', 'letter-spacing'
-      ];
+    Array.from(elements).forEach(element => {
+      // 获取元素的所有父级样式
+      let currentElem = element as HTMLElement;
+      const parentStyles: string[] = [];
+      while (currentElem.parentElement && currentElem.parentElement !== container) {
+        const computedStyle = window.getComputedStyle(currentElem.parentElement);
+        const relevantStyles = [
+          'background', 'background-color', 'padding', 'margin',
+          'border', 'display', 'flex-direction', 'justify-content',
+          'align-items', 'gap', 'position', 'width', 'height'
+        ];
+        let styles = '';
+        relevantStyles.forEach(prop => {
+          const value = computedStyle.getPropertyValue(prop);
+          if (value && value !== '') {
+            styles += `${prop}: ${value}; `;
+          }
+        });
+        parentStyles.unshift(styles);
+        currentElem = currentElem.parentElement;
+      }
 
-      let styles = '';
-      properties.forEach(prop => {
-        const value = computedStyle.getPropertyValue(prop);
+      // 创建嵌套的div结构来模拟父级样式
+      let currentContainer = wrapperDiv;
+      parentStyles.forEach(style => {
+        const parentDiv = document.createElement('div');
+        parentDiv.style.cssText = style;
+        currentContainer.appendChild(parentDiv);
+        currentContainer = parentDiv;
+      });
+
+      // 克隆目标元素及其样式
+      const clone = element.cloneNode(true) as HTMLElement;
+      const elementComputedStyle = window.getComputedStyle(element as HTMLElement);
+      let elementStyles = '';
+      Array.from(elementComputedStyle).forEach(prop => {
+        const value = elementComputedStyle.getPropertyValue(prop);
         if (value && value !== '') {
-          styles += `${prop}: ${value}; `;
+          elementStyles += `${prop}: ${value}; `;
         }
       });
-      return styles;
-    };
+      clone.style.cssText = elementStyles;
 
-    // 递归处理元素的所有子元素
-    const processElement = (element: Element) => {
-      if (element instanceof HTMLElement) {
-        const styles = computeStyles(element);
-        element.style.cssText += styles;
-      }
-      Array.from(element.children).forEach(processElement);
-    };
+      // 递归处理子元素样式
+      const processChildStyles = (parent: Element) => {
+        Array.from(parent.children).forEach(child => {
+          if (child instanceof HTMLElement) {
+            const childStyle = window.getComputedStyle(child);
+            let childStyles = '';
+            Array.from(childStyle).forEach(prop => {
+              const value = childStyle.getPropertyValue(prop);
+              if (value && value !== '') {
+                childStyles += `${prop}: ${value}; `;
+              }
+            });
+            child.style.cssText = childStyles;
+            processChildStyles(child);
+          }
+        });
+      };
+      processChildStyles(clone);
 
-    Array.from(elements).forEach(element => {
-      const clone = element.cloneNode(true) as HTMLElement;
-      processElement(clone);
-      wrapperDiv.appendChild(clone);
+      currentContainer.appendChild(clone);
     });
 
     return wrapperDiv.outerHTML;
