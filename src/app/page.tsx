@@ -6,7 +6,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 export default function Home() {
-  const [htmlCode, setHtmlCode] = useState('<div style="background: #f0f0f0; padding: 20px;">\n  <h1>Hello World</h1>\n  <p>Edit this HTML code!</p>\n  <div class="export-this">\n    <h2>这个 div 将被导出</h2>\n    <p>因为它有 export-this 类名</p>\n  </div>\n  <div class="dont-export">\n    <p>这个 div 不会被导出</p>\n  </div>\n</div>');
+  const [htmlCode, setHtmlCode] = useState('<div style="background: #f0f0f0; padding: 20px;">\n  <h1 style="color: #333; margin-bottom: 10px;">Hello World</h1>\n  <p style="color: #666;">Edit this HTML code!</p>\n  <div class="export-this" style="background: #fff; padding: 15px; border-radius: 8px; margin-top: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">\n    <h2 style="color: #2c5282;">这个 div 将被导出</h2>\n    <p style="color: #4a5568;">因为它有 export-this 类名</p>\n  </div>\n  <div class="dont-export" style="background: #e2e8f0; padding: 15px; margin-top: 20px;">\n    <p style="color: #718096;">这个 div 不会被导出</p>\n  </div>\n</div>');
   const [targetClass, setTargetClass] = useState('');
   const [availableClasses, setAvailableClasses] = useState<string[]>([]);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -15,256 +15,129 @@ export default function Home() {
 
   // 提取HTML中的所有类名
   const extractClassNames = (html: string) => {
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
-    
+    const classRegex = /class=["']([^"']+)["']/g;
     const classes = new Set<string>();
-    const elements = tempDiv.getElementsByClassName('*');
+    let match;
     
-    // 使用正则表达式从HTML字符串中提取类名
-    const classMatches = html.match(/class=["']([^"']+)["']/g);
-    if (classMatches) {
-      classMatches.forEach(match => {
-        const classNames = match.match(/class=["']([^"']+)["']/)?.[1];
-        if (classNames) {
-          classNames.split(' ').forEach(className => {
-            if (className.trim()) {
-              classes.add(className.trim());
-            }
-          });
-        }
+    while ((match = classRegex.exec(html)) !== null) {
+      match[1].split(/\s+/).forEach(className => {
+        if (className) classes.add(className);
       });
     }
     
     return Array.from(classes).sort();
   };
 
-  const handleEditorChange = (value: string | undefined) => {
-    if (value) {
-      setHtmlCode(value);
-      updatePreview(value);
-      // 提取并更新可用的类名
-      const classes = extractClassNames(value);
-      setAvailableClasses(classes);
-      // 如果当前选择的类名不在新的类名列表中，清空选择
-      if (!classes.includes(targetClass)) {
-        setTargetClass('');
-        setPreviewOnly(null);
+  // 深度复制元素的计算样式
+  const copyComputedStyles = (source: HTMLElement, target: HTMLElement) => {
+    const computedStyle = window.getComputedStyle(source);
+    
+    // 复制所有计算样式
+    Array.from(computedStyle).forEach(key => {
+      target.style.setProperty(key, computedStyle.getPropertyValue(key), computedStyle.getPropertyPriority(key));
+    });
+
+    // 特别处理一些重要的样式属性
+    ['margin', 'padding', 'border', 'background', 'color', 'font-family', 'font-size', 'line-height'].forEach(prop => {
+      target.style.setProperty(prop, computedStyle.getPropertyValue(prop), computedStyle.getPropertyPriority(prop));
+    });
+
+    // 处理伪元素
+    ['::before', '::after'].forEach(pseudo => {
+      const pseudoStyle = window.getComputedStyle(source, pseudo);
+      if (pseudoStyle.content !== 'none' && pseudoStyle.content !== '') {
+        const pseudoElement = document.createElement('span');
+        pseudoElement.setAttribute('data-pseudo', pseudo);
+        Array.from(pseudoStyle).forEach(key => {
+          pseudoElement.style.setProperty(key, pseudoStyle.getPropertyValue(key));
+        });
+        target.appendChild(pseudoElement);
       }
-    }
+    });
+  };
+
+  // 递归处理元素及其子元素
+  const processElement = (sourceElement: HTMLElement, targetElement: HTMLElement) => {
+    copyComputedStyles(sourceElement, targetElement);
+    
+    // 处理子元素
+    Array.from(sourceElement.children).forEach((child, index) => {
+      if (child instanceof HTMLElement && targetElement.children[index] instanceof HTMLElement) {
+        processElement(child, targetElement.children[index] as HTMLElement);
+      }
+    });
   };
 
   const updatePreview = (code: string, previewClass?: string | null) => {
     if (!previewRef.current) return;
-    
-    if (!previewClass) {
-      // 显示完整预览
-      previewRef.current.innerHTML = code;
-      return;
-    }
 
-    // 创建临时容器来解析HTML
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = code;
-    
-    // 提取指定类名的元素
-    const elements = tempDiv.getElementsByClassName(previewClass);
-    if (elements.length === 0) {
-      previewRef.current.innerHTML = '<div class="text-gray-500">没有找到指定类名的元素</div>';
-      return;
-    }
-    
-    // 创建预览容器并保持样式上下文
-    const previewContainer = document.createElement('div');
-    Array.from(elements).forEach(element => {
-      // 获取元素的所有父级样式
-      let currentElem = element as HTMLElement;
-      const parentStyles: string[] = [];
-      while (currentElem.parentElement && currentElem.parentElement !== tempDiv) {
-        const computedStyle = window.getComputedStyle(currentElem.parentElement);
-        const relevantStyles = [
-          'background', 'background-color', 'padding', 'margin',
-          'border', 'display', 'flex-direction', 'justify-content',
-          'align-items', 'gap', 'position', 'width', 'height'
-        ];
-        let styles = '';
-        relevantStyles.forEach(prop => {
-          const value = computedStyle.getPropertyValue(prop);
-          if (value && value !== '') {
-            styles += `${prop}: ${value}; `;
-          }
-        });
-        parentStyles.unshift(styles);
-        currentElem = currentElem.parentElement;
-      }
+    try {
+      // 创建一个隐藏的沙盒容器
+      const sandbox = document.createElement('div');
+      sandbox.style.position = 'absolute';
+      sandbox.style.left = '-9999px';
+      sandbox.style.width = previewRef.current.clientWidth + 'px';
+      sandbox.innerHTML = code;
+      document.body.appendChild(sandbox);
 
-      // 创建嵌套的div结构来模拟父级样式
-      let currentContainer = previewContainer;
-      parentStyles.forEach(style => {
-        const parentDiv = document.createElement('div');
-        parentDiv.style.cssText = style;
-        currentContainer.appendChild(parentDiv);
-        currentContainer = parentDiv;
-      });
+      // 等待样式计算
+      requestAnimationFrame(() => {
+        try {
+          if (!previewClass) {
+            const clonedContent = sandbox.cloneNode(true) as HTMLElement;
+            processElement(sandbox, clonedContent);
+            previewRef.current!.innerHTML = '';
+            previewRef.current!.appendChild(clonedContent);
+          } else {
+            const targetElements = sandbox.getElementsByClassName(previewClass);
+            if (targetElements.length === 0) {
+              previewRef.current!.innerHTML = '<div class="text-gray-500">没有找到指定类名的元素</div>';
+              return;
+            }
 
-      // 克隆目标元素及其样式
-      const clone = element.cloneNode(true) as HTMLElement;
-      const elementComputedStyle = window.getComputedStyle(element as HTMLElement);
-      let elementStyles = '';
-      Array.from(elementComputedStyle).forEach(prop => {
-        const value = elementComputedStyle.getPropertyValue(prop);
-        if (value && value !== '') {
-          elementStyles += `${prop}: ${value}; `;
-        }
-      });
-      clone.style.cssText = elementStyles;
-
-      // 递归处理子元素样式
-      const processChildStyles = (parent: Element) => {
-        Array.from(parent.children).forEach(child => {
-          if (child instanceof HTMLElement) {
-            const childStyle = window.getComputedStyle(child);
-            let childStyles = '';
-            Array.from(childStyle).forEach(prop => {
-              const value = childStyle.getPropertyValue(prop);
-              if (value && value !== '') {
-                childStyles += `${prop}: ${value}; `;
+            const container = document.createElement('div');
+            Array.from(targetElements).forEach(element => {
+              if (element instanceof HTMLElement) {
+                const clonedElement = element.cloneNode(true) as HTMLElement;
+                processElement(element, clonedElement);
+                container.appendChild(clonedElement);
               }
             });
-            child.style.cssText = childStyles;
-            processChildStyles(child);
+
+            previewRef.current!.innerHTML = '';
+            previewRef.current!.appendChild(container);
           }
-        });
-      };
-      processChildStyles(clone);
-
-      currentContainer.appendChild(clone);
-    });
-    
-    previewRef.current.innerHTML = previewContainer.innerHTML;
-  };
-
-  // 处理类名选择变化
-  const handleClassSelect = (className: string) => {
-    setTargetClass(className);
-    // 更新预览，但不改变HTML代码
-    if (className) {
-      setPreviewOnly(className);
-      updatePreview(htmlCode, className);
-    } else {
-      setPreviewOnly(null);
-      updatePreview(htmlCode);
+        } finally {
+          document.body.removeChild(sandbox);
+        }
+      });
+    } catch (error) {
+      console.error('预览更新失败:', error);
+      previewRef.current.innerHTML = '<div class="text-red-500">预览更新失败</div>';
     }
   };
 
-  const extractElements = (container: HTMLElement, className: string) => {
-    if (!className.trim()) {
-      return container.innerHTML;
-    }
-
-    const elements = container.getElementsByClassName(className);
-    if (elements.length === 0) {
-      console.warn(`没有找到类名为 "${className}" 的元素，将导出所有内容`);
-      return container.innerHTML;
-    }
-    
-    // 创建包装容器
-    const wrapperDiv = document.createElement('div');
-    wrapperDiv.style.cssText = `
-      width: 100%;
-      background: #ffffff;
-      padding: 20px;
-      box-sizing: border-box;
-    `;
-
-    Array.from(elements).forEach(element => {
-      // 获取元素的所有父级样式
-      let currentElem = element as HTMLElement;
-      const parentStyles: string[] = [];
-      while (currentElem.parentElement && currentElem.parentElement !== container) {
-        const computedStyle = window.getComputedStyle(currentElem.parentElement);
-        const relevantStyles = [
-          'background', 'background-color', 'padding', 'margin',
-          'border', 'display', 'flex-direction', 'justify-content',
-          'align-items', 'gap', 'position', 'width', 'height'
-        ];
-        let styles = '';
-        relevantStyles.forEach(prop => {
-          const value = computedStyle.getPropertyValue(prop);
-          if (value && value !== '') {
-            styles += `${prop}: ${value}; `;
-          }
-        });
-        parentStyles.unshift(styles);
-        currentElem = currentElem.parentElement;
+  const handleEditorChange = (value: string | undefined) => {
+    if (value) {
+      setHtmlCode(value);
+      // 如果有选中的类名，使用新代码更新预览
+      if (previewOnly) {
+        updatePreview(value, previewOnly);
+      } else {
+        updatePreview(value);
       }
-
-      // 创建嵌套的div结构来模拟父级样式
-      let currentContainer = wrapperDiv;
-      parentStyles.forEach(style => {
-        const parentDiv = document.createElement('div');
-        parentDiv.style.cssText = style;
-        currentContainer.appendChild(parentDiv);
-        currentContainer = parentDiv;
-      });
-
-      // 克隆目标元素及其样式
-      const clone = element.cloneNode(true) as HTMLElement;
-      const elementComputedStyle = window.getComputedStyle(element as HTMLElement);
-      let elementStyles = '';
-      Array.from(elementComputedStyle).forEach(prop => {
-        const value = elementComputedStyle.getPropertyValue(prop);
-        if (value && value !== '') {
-          elementStyles += `${prop}: ${value}; `;
-        }
-      });
-      clone.style.cssText = elementStyles;
-
-      // 递归处理子元素样式
-      const processChildStyles = (parent: Element) => {
-        Array.from(parent.children).forEach(child => {
-          if (child instanceof HTMLElement) {
-            const childStyle = window.getComputedStyle(child);
-            let childStyles = '';
-            Array.from(childStyle).forEach(prop => {
-              const value = childStyle.getPropertyValue(prop);
-              if (value && value !== '') {
-                childStyles += `${prop}: ${value}; `;
-              }
-            });
-            child.style.cssText = childStyles;
-            processChildStyles(child);
-          }
-        });
-      };
-      processChildStyles(clone);
-
-      currentContainer.appendChild(clone);
-    });
-
-    return wrapperDiv.outerHTML;
+      // 更新可用的类名列表
+      const classes = extractClassNames(value);
+      setAvailableClasses(classes);
+    }
   };
 
   const generateStaticHtml = async () => {
     if (!previewRef.current) return;
     try {
       setLoading(true);
-      
-      // 提取指定类名的元素
-      const extractedHtml = extractElements(previewRef.current, targetClass);
-      
-      // 格式化HTML
-      const beautifyHtml = (html: string) => {
-        return html
-          .replace(/></g, '>\n<')
-          .split('\n')
-          .map(line => line.trim())
-          .filter(line => line)
-          .map(line => '  ' + line)
-          .join('\n');
-      };
-
-      setHtmlCode(beautifyHtml(extractedHtml));
+      const currentHtml = previewRef.current.innerHTML;
+      setHtmlCode(currentHtml);
     } catch (error) {
       console.error('生成静态HTML失败:', error);
       alert('生成静态HTML时发生错误。');
@@ -278,45 +151,74 @@ export default function Home() {
     try {
       setLoading(true);
 
-      // 创建临时容器
-      const container = document.createElement('div');
-      container.style.cssText = `
-        width: 800px;
-        padding: 20px;
-        background: white;
-        margin: 0 auto;
-      `;
-      
-      // 提取指定类名的元素
-      const extractedHtml = extractElements(previewRef.current, targetClass);
-      container.innerHTML = extractedHtml;
-      
-      // 添加到body并等待样式应用
-      document.body.appendChild(container);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // 在导出前应用字体和外部样式
+      const element = previewRef.current;
+      const fonts = document.fonts;
+      await fonts.ready; // 等待字体加载
 
-      try {
-        // 转换为canvas
-        const canvas = await html2canvas(container, {
-          scale: 2,
-          useCORS: true,
-          logging: true,
-          backgroundColor: '#ffffff'
-        });
+      // 创建一个新的容器用于导出
+      const exportContainer = document.createElement('div');
+      exportContainer.style.background = '#ffffff';
+      exportContainer.style.width = '800px'; // 固定宽度以确保一致性
+      exportContainer.style.padding = '20px';
+      exportContainer.style.position = 'absolute';
+      exportContainer.style.left = '-9999px';
+      exportContainer.innerHTML = element.innerHTML;
 
-        // 计算PDF尺寸（A4）
-        const imgWidth = 210; // A4 宽度（mm）
-        const pageHeight = 297; // A4 高度（mm）
-        const imgHeight = canvas.height * imgWidth / canvas.width;
-        
-        // 创建PDF
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, imgWidth, imgHeight);
-        pdf.save('exported.pdf');
-      } finally {
-        // 确保临时容器被删除
-        document.body.removeChild(container);
+      document.body.appendChild(exportContainer);
+
+      // 使用更高的比例以获得更好的质量
+      const canvas = await html2canvas(exportContainer, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        allowTaint: true,
+        foreignObjectRendering: true,
+        // 确保渲染所有背景
+        onclone: (doc) => {
+          const elements = doc.getElementsByTagName('*');
+          for (let i = 0; i < elements.length; i++) {
+            const el = elements[i] as HTMLElement;
+            const computed = window.getComputedStyle(el);
+            el.style.background = computed.background;
+          }
+        }
+      });
+
+      // 移除临时容器
+      document.body.removeChild(exportContainer);
+
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+      
+      const pageWidth = 210; // A4 宽度(mm)
+      const pageHeight = 297; // A4 高度(mm)
+      
+      // 计算缩放比例以适应 PDF 页面宽度
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+      let page = 1;
+
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, '', 'FAST');
+
+      while (heightLeft >= pageHeight) {
+        position = -pageHeight * page;
+        page++;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, '', 'FAST');
+        heightLeft -= pageHeight;
       }
+
+      pdf.save('exported.pdf');
     } catch (error: any) {
       console.error('导出PDF失败:', error);
       alert('导出PDF时发生错误：' + (error?.message || '未知错误'));
@@ -325,11 +227,18 @@ export default function Home() {
     }
   };
 
-  // 初始化预览
+  // 处理类名选择变化
+  const handleClassSelect = (className: string) => {
+    setTargetClass(className);
+    setPreviewOnly(className);
+    updatePreview(htmlCode, className);
+  };
+
+  // 初始化
   useEffect(() => {
-    updatePreview(htmlCode);
     const classes = extractClassNames(htmlCode);
     setAvailableClasses(classes);
+    updatePreview(htmlCode);
   }, []);
 
   return (
