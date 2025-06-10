@@ -84,10 +84,24 @@ export default function Home() {
       requestAnimationFrame(() => {
         try {
           if (!previewClass) {
-            const clonedContent = sandbox.cloneNode(true) as HTMLElement;
-            processElement(sandbox, clonedContent);
-            previewRef.current!.innerHTML = '';
-            previewRef.current!.appendChild(clonedContent);
+            // 直接克隆整个代码内容，不需要特殊处理
+            previewRef.current!.innerHTML = code;
+            
+            // 处理完整预览中的所有元素样式
+            const elements = previewRef.current!.getElementsByTagName('*');
+            Array.from(elements).forEach(el => {
+              if (el instanceof HTMLElement) {
+                // 应用计算后的样式
+                const computed = window.getComputedStyle(el);
+                // 特别关注的样式属性
+                ['margin', 'padding', 'border', 'background', 'color', 
+                 'font-family', 'font-size', 'line-height', 'box-shadow', 
+                 'border-radius'].forEach(prop => {
+                  el.style.setProperty(prop, computed.getPropertyValue(prop), 
+                    computed.getPropertyPriority(prop));
+                });
+              }
+            });
           } else {
             const targetElements = sandbox.getElementsByClassName(previewClass);
             if (targetElements.length === 0) {
