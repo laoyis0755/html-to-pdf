@@ -110,11 +110,58 @@ export default function Home() {
             }
 
             const container = document.createElement('div');
+            container.style.display = 'flex';
+            container.style.flexDirection = 'column';
+            container.style.gap = '10px';
+
+            // 获取每个目标元素的完整上下文
             Array.from(targetElements).forEach(element => {
               if (element instanceof HTMLElement) {
+                // 创建一个包装容器来保持布局上下文
+                const wrapper = document.createElement('div');
+                wrapper.style.position = 'relative';
+                wrapper.style.width = '100%';
+                
+                // 计算元素的原始尺寸和位置
+                const originalRect = element.getBoundingClientRect();
                 const clonedElement = element.cloneNode(true) as HTMLElement;
+                
+                // 重置可能影响布局的样式
+                clonedElement.style.position = 'relative';
+                clonedElement.style.top = 'auto';
+                clonedElement.style.left = 'auto';
+                clonedElement.style.margin = '0';
+                clonedElement.style.width = originalRect.width + 'px';
+                
+                // 复制计算样式
                 processElement(element, clonedElement);
-                container.appendChild(clonedElement);
+                
+                // 处理子元素的定位
+                const processChildrenPositioning = (parent: HTMLElement, clone: HTMLElement) => {
+                  Array.from(parent.children).forEach((child, index) => {
+                    if (child instanceof HTMLElement && clone.children[index] instanceof HTMLElement) {
+                      const childClone = clone.children[index] as HTMLElement;
+                      const childRect = child.getBoundingClientRect();
+                      const parentRect = parent.getBoundingClientRect();
+                      
+                      // 保持子元素的相对位置
+                      const relativeTop = childRect.top - parentRect.top;
+                      const relativeLeft = childRect.left - parentRect.left;
+                      
+                      childClone.style.position = 'absolute';
+                      childClone.style.top = relativeTop + 'px';
+                      childClone.style.left = relativeLeft + 'px';
+                      childClone.style.width = childRect.width + 'px';
+                      childClone.style.height = childRect.height + 'px';
+                      
+                      processChildrenPositioning(child, childClone);
+                    }
+                  });
+                };
+                
+                wrapper.appendChild(clonedElement);
+                processChildrenPositioning(element, clonedElement);
+                container.appendChild(wrapper);
               }
             });
 
