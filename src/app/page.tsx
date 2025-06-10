@@ -1,67 +1,25 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { createApp } from 'vue';
 
 export default function Home() {
-  const [htmlCode, setHtmlCode] = useState('<template>\n  <div style="background: #f0f0f0; padding: 20px;">\n    <h1>{{ title }}</h1>\n    <p>{{ message }}</p>\n  </div>\n</template>\n\n<script>\nexport default {\n  data() {\n    return {\n      title: "Hello Vue",\n      message: "Edit this Vue code!"\n    }\n  }\n}\n</script>');
+  const [htmlCode, setHtmlCode] = useState('<div style="background: #f0f0f0; padding: 20px;">\n  <h1>Hello World</h1>\n  <p>Edit this HTML code!</p>\n</div>');
   const previewRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
-  const [vueInstance, setVueInstance] = useState<any>(null);
 
   const handleEditorChange = (value: string | undefined) => {
     if (value) {
       setHtmlCode(value);
-      updateVuePreview(value);
+      updatePreview(value);
     }
   };
 
-  const updateVuePreview = async (code: string) => {
+  const updatePreview = (code: string) => {
     if (!previewRef.current) return;
-
-    try {
-      // 清除之前的Vue实例
-      if (vueInstance) {
-        vueInstance.unmount();
-      }
-
-      // 解析Vue代码
-      const templateMatch = code.match(/<template>([\s\S]*)<\/template>/);
-      const scriptMatch = code.match(/<script>([\s\S]*)<\/script>/);
-
-      if (!templateMatch || !scriptMatch) {
-        console.error('无效的Vue代码格式');
-        return;
-      }
-
-      const template = templateMatch[1].trim();
-      const script = scriptMatch[1].trim();
-
-      // 创建临时div
-      const container = document.createElement('div');
-      container.innerHTML = template;
-      previewRef.current.innerHTML = '';
-      previewRef.current.appendChild(container);
-
-      // 执行script部分
-      const scriptContent = script.replace('export default', 'return');
-      const componentOptions = new Function(scriptContent)();
-
-      // 创建Vue实例
-      const app = createApp({
-        template,
-        ...componentOptions
-      });
-
-      app.mount(container);
-      setVueInstance(app);
-
-    } catch (error) {
-      console.error('Vue预览更新失败:', error);
-    }
+    previewRef.current.innerHTML = code;
   };
 
   const generateStaticHtml = async () => {
@@ -139,7 +97,7 @@ ${beautifyHtml(tempDiv.innerHTML)}
 
         // 创建一个临时容器来渲染内容
         const container = document.createElement('div');
-        container.style.width = '800px'; // 固定宽度以确保一致的渲染
+        container.style.width = '800px';
         container.style.padding = '20px';
         container.style.background = 'white';
         container.innerHTML = htmlCode;
@@ -147,8 +105,8 @@ ${beautifyHtml(tempDiv.innerHTML)}
 
         // 转换为canvas
         const canvas = await html2canvas(container, {
-          scale: 2, // 更高的分辨率
-          useCORS: true, // 允许加载跨域图片
+          scale: 2,
+          useCORS: true,
           logging: false,
           backgroundColor: '#ffffff',
         });
@@ -172,9 +130,6 @@ ${beautifyHtml(tempDiv.innerHTML)}
           if (!firstPage) {
             pdf.addPage();
           }
-          
-          const contentWidth = canvas.width;
-          const contentHeight = canvas.height;
           
           // 将canvas转换为图片
           const imgData = canvas.toDataURL('image/jpeg', 1.0);
@@ -203,23 +158,23 @@ ${beautifyHtml(tempDiv.innerHTML)}
     }
   };
 
-  useEffect(() => {
-    // 初始化Vue预览
-    updateVuePreview(htmlCode);
-  }, []);
+  // 初始化预览
+  useState(() => {
+    updatePreview(htmlCode);
+  });
 
   return (
     <main className="min-h-screen p-4">
       <div className="container mx-auto">
-        <h1 className="text-2xl font-bold mb-4">Vue 转 PDF 工具</h1>
+        <h1 className="text-2xl font-bold mb-4">HTML 转 PDF 工具</h1>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="border rounded-lg overflow-hidden">
             <div className="bg-gray-100 p-2 border-b">
-              <h2 className="font-semibold">Vue 代码</h2>
+              <h2 className="font-semibold">HTML 代码</h2>
             </div>
             <Editor
               height="400px"
-              defaultLanguage="vue"
+              defaultLanguage="html"
               defaultValue={htmlCode}
               onChange={handleEditorChange}
               options={{

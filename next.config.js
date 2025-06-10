@@ -13,10 +13,7 @@ const nextConfig = {
     };
 
     return config;
-  },
-  experimental: {
-    turbo: false
-  }
+  },  experimental: {}
 };
 
 module.exports = nextConfig;
