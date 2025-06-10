@@ -244,6 +244,27 @@ export default function Home() {
       const tempContainer = document.createElement('div');
       tempContainer.innerHTML = previewRef.current.innerHTML;
 
+      // 移除所有脚本标签
+      const scripts = tempContainer.getElementsByTagName('script');
+      while (scripts.length > 0) {
+        scripts[0].parentNode?.removeChild(scripts[0]);
+      }
+
+      // 移除 Vue 相关属性
+      const allElements = tempContainer.getElementsByTagName('*');
+      Array.from(allElements).forEach(el => {
+        // 移除 Vue 指令和事件监听器
+        const attrs = Array.from(el.attributes);
+        attrs.forEach(attr => {
+          if (attr.name.startsWith('v-') || 
+              attr.name.startsWith('@') || 
+              attr.name.startsWith(':') ||
+              attr.name === 'data-v-app') {
+            el.removeAttribute(attr.name);
+          }
+        });
+      });
+
       // 处理所有元素的样式
       const processElements = (elements: HTMLElement[]) => {
         elements.forEach(el => {
@@ -251,23 +272,136 @@ export default function Home() {
           
           // 复制重要的样式属性
           [
-            'margin', 'padding', 'border', 'border-radius',
-            'background', 'color', 'font-family', 'font-size',
-            'line-height', 'text-align', 'display', 'flex-direction',
-            'justify-content', 'align-items', 'gap', 'opacity',
-            'position', 'top', 'left', 'right', 'bottom',
-            'width', 'height', 'min-height', 'max-width',
-            'box-shadow', 'z-index', 'white-space', 'overflow',
-            'text-overflow'
+            // 布局相关
+            'margin', 'padding', 'border', 'border-radius', 'width', 'height',
+            'min-width', 'min-height', 'max-width', 'max-height',
+            'display', 'flex-direction', 'flex-wrap', 'flex-grow',
+            'justify-content', 'align-items', 'align-self', 'gap',
+            'grid-template-columns', 'grid-template-rows', 'grid-gap',
+            
+            // 定位相关
+            'position', 'top', 'left', 'right', 'bottom', 'z-index',
+            'transform', 'transform-origin',
+            
+            // 背景相关
+            'background', 'background-color', 'background-image',
+            'background-size', 'background-position', 'background-repeat',
+            'background-attachment', 'background-clip', 'background-origin',
+            'background-blend-mode',
+            
+            // 文本相关
+            'color', 'font-family', 'font-size', 'font-weight',
+            'font-style', 'line-height', 'text-align', 'text-decoration',
+            'text-transform', 'letter-spacing', 'word-spacing',
+            'white-space', 'overflow', 'text-overflow',
+            
+            // 效果相关
+            'opacity', 'box-shadow', 'text-shadow', 'filter',
+            'backdrop-filter', 'mix-blend-mode', 'isolation',
+            
+            // 动画相关（静态属性）
+            'transform-style', 'perspective', 'backface-visibility',
+            
+            // 其他
+            'cursor', 'pointer-events', 'user-select'
           ].forEach(prop => {
             const value = computedStyle.getPropertyValue(prop);
-            if (value) el.style[prop as any] = value;
+            if (value && value !== 'none' && value !== 'auto' && value !== 'normal') {
+              try {
+                // 尝试保留带前缀的属性
+                const prefixes = ['-webkit-', '-moz-', '-ms-', '-o-', ''];
+                prefixes.forEach(prefix => {
+                  const prefixedValue = computedStyle.getPropertyValue(prefix + prop);
+                  if (prefixedValue && prefixedValue !== 'none' && prefixedValue !== 'auto' && prefixedValue !== 'normal') {
+                    el.style.setProperty(prefix + prop, prefixedValue);
+                  }
+                });
+              } catch (e) {
+                // 如果出错，至少设置无前缀的版本
+                el.style[prop as any] = value;
+              }
+            }
           });
 
           // 特殊处理 header 元素
           if (el.classList.contains('header')) {
             el.style.background = 'linear-gradient(120deg, #405de6, #5851db, #833ab4, #c13584, #e1306c, #fd1d1d)';
+            el.style.position = 'relative';
+            el.style.width = '100%';
+            el.style.minHeight = '200px';
+            el.style.overflow = 'visible';
+            
+            // 修复装饰元素位置
+            const decorElements = el.getElementsByClassName('flower-decor');
+            if (decorElements.length > 0 && decorElements[0] instanceof HTMLElement) {
+              const decor = decorElements[0] as HTMLElement;
+              decor.style.position = 'absolute';
+              decor.style.right = '20px';
+              decor.style.top = '20px';
+              decor.style.fontSize = '100px';
+              decor.style.opacity = '0.15';
+              decor.style.zIndex = '1';
+            }
+
+            // 修复内容布局
+            const contentElements = el.getElementsByClassName('header-content');
+            if (contentElements.length > 0 && contentElements[0] instanceof HTMLElement) {
+              const content = contentElements[0] as HTMLElement;
+              content.style.position = 'relative';
+              content.style.zIndex = '2';
+              content.style.padding = '30px';
+              
+              // 修复标题和段落样式
+              const titles = content.getElementsByTagName('h1');
+              if (titles.length > 0) {
+                titles[0].style.fontSize = '38px';
+                titles[0].style.fontWeight = '700';
+                titles[0].style.marginBottom = '10px';
+              }
+              
+              const paragraphs = content.getElementsByTagName('p');
+              Array.from(paragraphs).forEach(p => {
+                p.style.marginBottom = '15px';
+                p.style.lineHeight = '1.6';
+                if (p.classList.contains('slogan')) {
+                  p.style.display = 'inline-block';
+                  p.style.marginTop = '20px';
+                  p.style.background = 'rgba(255, 255, 255, 0.15)';
+                  p.style.padding = '8px 15px';
+                  p.style.borderRadius = '50px';
+                }
+              });
+            }
           }
+
+          // 处理伪元素
+          ['::before', '::after'].forEach(pseudo => {
+            const pseudoStyle = window.getComputedStyle(el, pseudo);
+            if (pseudoStyle.content !== 'none' && pseudoStyle.content !== '') {
+              const pseudoElement = document.createElement('span');
+              pseudoElement.setAttribute('data-pseudo', pseudo);
+              
+              // 复制伪元素的样式
+              Array.from(pseudoStyle).forEach(prop => {
+                try {
+                  const value = pseudoStyle.getPropertyValue(prop);
+                  if (value && value !== 'none' && value !== 'auto' && value !== 'normal') {
+                    pseudoElement.style.setProperty(prop, value);
+                  }
+                } catch (e) {
+                  // 忽略不支持的属性
+                }
+              });
+              
+              // 确保伪元素的定位
+              pseudoElement.style.position = 'absolute';
+              if (pseudo === '::before') {
+                el.insertBefore(pseudoElement, el.firstChild);
+              } else {
+                el.appendChild(pseudoElement);
+              }
+            }
+          });
         });
       };
 
