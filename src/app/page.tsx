@@ -191,7 +191,19 @@ export default function Home() {
       sandbox.style.position = 'absolute';
       sandbox.style.left = '-9999px';
       sandbox.style.width = previewRef.current.clientWidth + 'px';
-      sandbox.innerHTML = code;
+
+      // 确保字体和图标的样式被保留
+      const styleLinks = Array.from(document.getElementsByTagName('link'))
+        .filter(link => link.rel === 'stylesheet')
+        .map(link => link.cloneNode(true));
+      
+      const tempHead = document.createElement('div');
+      styleLinks.forEach(link => tempHead.appendChild(link));
+      
+      sandbox.innerHTML = `
+        ${tempHead.innerHTML}
+        ${code}
+      `;
       document.body.appendChild(sandbox);
 
       // 等待样式计算
@@ -619,6 +631,18 @@ export default function Home() {
 
       // 创建一个新的容器用于导出
       const exportContainer = document.createElement('div');
+      
+      // 确保字体和图标加载
+      const fontAwesomeLink = document.createElement('link');
+      fontAwesomeLink.rel = 'stylesheet';
+      fontAwesomeLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+      document.head.appendChild(fontAwesomeLink);
+
+      // 等待字体加载完成
+      await new Promise((resolve) => {
+        fontAwesomeLink.onload = resolve;
+      });
+
       exportContainer.style.cssText = `
         background: #ffffff;
         width: 800px;
@@ -626,9 +650,21 @@ export default function Home() {
         position: fixed;
         top: 0;
         left: -9999px;
-        font-family: Arial, sans-serif;
+        font-family: 'Noto Sans SC', Arial, sans-serif;
       `;
-      exportContainer.innerHTML = element.innerHTML;
+      
+      // 保持所有图标和样式
+      const styleLinks = Array.from(document.getElementsByTagName('link'))
+        .filter(link => link.rel === 'stylesheet')
+        .map(link => link.cloneNode(true));
+      
+      const tempHead = document.createElement('div');
+      styleLinks.forEach(link => tempHead.appendChild(link));
+      
+      exportContainer.innerHTML = `
+        ${tempHead.innerHTML}
+        ${element.innerHTML}
+      `;
 
       // 修复渐变背景和布局
       const headers = exportContainer.getElementsByClassName('header');
@@ -727,6 +763,29 @@ export default function Home() {
 
   // 初始化
   useEffect(() => {
+    // 加载字体和图标
+    const loadFontsAndIcons = async () => {
+      // 加载 Font Awesome
+      if (!document.querySelector('link[href*="font-awesome"]')) {
+        const fontAwesomeLink = document.createElement('link');
+        fontAwesomeLink.rel = 'stylesheet';
+        fontAwesomeLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+        document.head.appendChild(fontAwesomeLink);
+      }
+
+      // 加载 Google Fonts
+      if (!document.querySelector('link[href*="googleapis"]')) {
+        const googleFontsLink = document.createElement('link');
+        googleFontsLink.rel = 'stylesheet';
+        googleFontsLink.href = 'https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap';
+        document.head.appendChild(googleFontsLink);
+      }
+
+      // 等待字体加载
+      await document.fonts.ready;
+    };
+
+    loadFontsAndIcons();
     const classes = extractClassNames(htmlCode);
     setAvailableClasses(classes);
     updatePreview(htmlCode);
