@@ -112,6 +112,7 @@ export default function Home() {
                   // 保持渐变背景
                   const background = computedStyles.getPropertyValue('background');
                   elementClone.style.background = background;
+                  elementClone.style.width = '100%';
                   
                   // 确保装饰元素正确定位
                   const decorElements = elementClone.getElementsByClassName('flower-decor');
@@ -121,6 +122,7 @@ export default function Home() {
                     decor.style.right = '20px';
                     decor.style.top = '20px';
                     decor.style.opacity = '0.15';
+                    decor.style.fontSize = '100px';
                   }
                   
                   // 确保内容元素正确定位
@@ -129,17 +131,37 @@ export default function Home() {
                     const content = contentElements[0] as HTMLElement;
                     content.style.position = 'relative';
                     content.style.zIndex = '2';
+                    
+                    // 修复 slogan 样式
+                    const sloganElements = content.getElementsByClassName('slogan');
+                    if (sloganElements.length > 0 && sloganElements[0] instanceof HTMLElement) {
+                      const slogan = sloganElements[0] as HTMLElement;
+                      const sloganStyles = window.getComputedStyle(element.querySelector('.slogan')!);
+                      slogan.style.cssText = `
+                        font-size: ${sloganStyles.fontSize};
+                        font-style: italic;
+                        margin-top: 20px;
+                        opacity: 0.85;
+                        background: rgba(255, 255, 255, 0.15);
+                        padding: 8px 15px;
+                        border-radius: 50px;
+                        display: inline-block;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                      `;
+                    }
                   }
                 }
                 
-                // 创建包装容器
+                // 创建包装容器并设置宽度
                 const wrapper = document.createElement('div');
                 wrapper.style.width = '100%';
                 
                 // 复制原始元素的尺寸
                 const rect = element.getBoundingClientRect();
-                elementClone.style.width = rect.width + 'px';
-                elementClone.style.height = rect.height + 'px';
+                elementClone.style.width = '100%';
+                elementClone.style.minHeight = rect.height + 'px';
                 
                 // 复制所有重要的样式属性
                 [
@@ -147,7 +169,7 @@ export default function Home() {
                   'box-shadow', 'color', 'font-family', 'font-size',
                   'line-height', 'text-align', 'background', 'position',
                   'display', 'align-items', 'justify-content',
-                  'flex-direction', 'gap'
+                  'flex-direction', 'gap', 'overflow'
                 ].forEach(prop => {
                   const value = computedStyles.getPropertyValue(prop);
                   if (value) elementClone.style.setProperty(prop, value);
@@ -166,7 +188,8 @@ export default function Home() {
                         'width', 'height', 'padding', 'margin', 'color',
                         'font-size', 'font-weight', 'line-height',
                         'text-align', 'background', 'z-index',
-                        'display', 'align-items', 'opacity'
+                        'display', 'align-items', 'opacity',
+                        'white-space', 'overflow', 'text-overflow'
                       ].forEach(prop => {
                         const value = childStyles.getPropertyValue(prop);
                         if (value) childClone.style.setProperty(prop, value);
