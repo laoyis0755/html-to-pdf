@@ -239,8 +239,54 @@ export default function Home() {
     if (!previewRef.current) return;
     try {
       setLoading(true);
-      const currentHtml = previewRef.current.innerHTML;
-      setHtmlCode(currentHtml);
+
+      // 创建一个临时容器来处理样式
+      const tempContainer = document.createElement('div');
+      tempContainer.innerHTML = previewRef.current.innerHTML;
+
+      // 处理所有元素的样式
+      const processElements = (elements: HTMLElement[]) => {
+        elements.forEach(el => {
+          const computedStyle = window.getComputedStyle(el);
+          
+          // 复制重要的样式属性
+          [
+            'margin', 'padding', 'border', 'border-radius',
+            'background', 'color', 'font-family', 'font-size',
+            'line-height', 'text-align', 'display', 'flex-direction',
+            'justify-content', 'align-items', 'gap', 'opacity',
+            'position', 'top', 'left', 'right', 'bottom',
+            'width', 'height', 'min-height', 'max-width',
+            'box-shadow', 'z-index', 'white-space', 'overflow',
+            'text-overflow'
+          ].forEach(prop => {
+            const value = computedStyle.getPropertyValue(prop);
+            if (value) el.style[prop as any] = value;
+          });
+
+          // 特殊处理 header 元素
+          if (el.classList.contains('header')) {
+            el.style.background = 'linear-gradient(120deg, #405de6, #5851db, #833ab4, #c13584, #e1306c, #fd1d1d)';
+          }
+        });
+      };
+
+      // 处理所有元素及其子元素
+      const elements = Array.from(tempContainer.getElementsByTagName('*')) as HTMLElement[];
+      processElements([tempContainer as HTMLElement, ...elements]);
+
+      // 获取处理后的 HTML
+      const processedHtml = tempContainer.outerHTML;
+      
+      // 设置为编辑器的值
+      setHtmlCode(processedHtml);
+
+      // 更新预览
+      if (previewOnly) {
+        updatePreview(processedHtml, previewOnly);
+      } else {
+        updatePreview(processedHtml);
+      }
     } catch (error) {
       console.error('生成静态HTML失败:', error);
       alert('生成静态HTML时发生错误。');
