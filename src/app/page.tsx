@@ -1,26 +1,99 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 export default function Home() {
   const [htmlCode, setHtmlCode] = useState('<div style="background: #f0f0f0; padding: 20px;">\n  <h1>Hello World</h1>\n  <p>Edit this HTML code!</p>\n  <div class="export-this">\n    <h2>这个 div 将被导出</h2>\n    <p>因为它有 export-this 类名</p>\n  </div>\n  <div class="dont-export">\n    <p>这个 div 不会被导出</p>\n  </div>\n</div>');
-  const [targetClass, setTargetClass] = useState('export-this');
+  const [targetClass, setTargetClass] = useState('');
+  const [availableClasses, setAvailableClasses] = useState<string[]>([]);
   const previewRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
+  const [previewOnly, setPreviewOnly] = useState<string | null>(null);
+
+  // 提取HTML中的所有类名
+  const extractClassNames = (html: string) => {
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    const classes = new Set<string>();
+    const elements = tempDiv.getElementsByClassName('*');
+    
+    // 使用正则表达式从HTML字符串中提取类名
+    const classMatches = html.match(/class=["']([^"']+)["']/g);
+    if (classMatches) {
+      classMatches.forEach(match => {
+        const classNames = match.match(/class=["']([^"']+)["']/)?.[1];
+        if (classNames) {
+          classNames.split(' ').forEach(className => {
+            if (className.trim()) {
+              classes.add(className.trim());
+            }
+          });
+        }
+      });
+    }
+    
+    return Array.from(classes).sort();
+  };
 
   const handleEditorChange = (value: string | undefined) => {
     if (value) {
       setHtmlCode(value);
       updatePreview(value);
+      // 提取并更新可用的类名
+      const classes = extractClassNames(value);
+      setAvailableClasses(classes);
+      // 如果当前选择的类名不在新的类名列表中，清空选择
+      if (!classes.includes(targetClass)) {
+        setTargetClass('');
+        setPreviewOnly(null);
+      }
     }
   };
 
-  const updatePreview = (code: string) => {
+  const updatePreview = (code: string, previewClass?: string | null) => {
     if (!previewRef.current) return;
-    previewRef.current.innerHTML = code;
+    
+    if (!previewClass) {
+      // 显示完整预览
+      previewRef.current.innerHTML = code;
+      return;
+    }
+
+    // 创建临时容器来解析HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = code;
+    
+    // 提取指定类名的元素
+    const elements = tempDiv.getElementsByClassName(previewClass);
+    if (elements.length === 0) {
+      previewRef.current.innerHTML = '<div class="text-gray-500">没有找到指定类名的元素</div>';
+      return;
+    }
+    
+    // 创建预览容器
+    const previewContainer = document.createElement('div');
+    Array.from(elements).forEach(element => {
+      previewContainer.appendChild(element.cloneNode(true));
+    });
+    
+    previewRef.current.innerHTML = previewContainer.innerHTML;
+  };
+
+  // 处理类名选择变化
+  const handleClassSelect = (className: string) => {
+    setTargetClass(className);
+    // 更新预览，但不改变HTML代码
+    if (className) {
+      setPreviewOnly(className);
+      updatePreview(htmlCode, className);
+    } else {
+      setPreviewOnly(null);
+      updatePreview(htmlCode);
+    }
   };
 
   const extractElements = (container: HTMLElement, className: string) => {
@@ -163,9 +236,11 @@ export default function Home() {
   };
 
   // 初始化预览
-  useState(() => {
+  useEffect(() => {
     updatePreview(htmlCode);
-  });
+    const classes = extractClassNames(htmlCode);
+    setAvailableClasses(classes);
+  }, []);
 
   return (
     <main className="min-h-screen p-4">
@@ -176,15 +251,30 @@ export default function Home() {
             要导出的元素类名
           </label>
           <div className="flex gap-2">
-            <input
-              type="text"
-              id="targetClass"
-              value={targetClass}
-              onChange={(e) => setTargetClass(e.target.value)}
-              className="flex-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="输入要导出的元素的类名"
-            />
-            <div className="text-sm text-gray-500 flex items-center">
+            <div className="flex-1 flex gap-2">
+              <input
+                type="text"
+                id="targetClass"
+                value={targetClass}
+                onChange={(e) => handleClassSelect(e.target.value)}
+                className="w-1/2 p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="输入要导出的元素的类名"
+                list="class-suggestions"
+              />
+              <select
+                value={targetClass}
+                onChange={(e) => handleClassSelect(e.target.value)}
+                className="w-1/2 p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">-- 选择类名 --</option>
+                {availableClasses.map((className) => (
+                  <option key={className} value={className}>
+                    {className}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="text-sm text-gray-500 flex items-center whitespace-nowrap">
               留空则导出所有内容
             </div>
           </div>
@@ -197,7 +287,7 @@ export default function Home() {
             <Editor
               height="400px"
               defaultLanguage="html"
-              defaultValue={htmlCode}
+              value={htmlCode}
               onChange={handleEditorChange}
               options={{
                 minimap: { enabled: false },
@@ -210,8 +300,20 @@ export default function Home() {
           </div>
           <div>
             <div className="border rounded-lg">
-              <div className="bg-gray-100 p-2 border-b">
+              <div className="bg-gray-100 p-2 border-b flex justify-between items-center">
                 <h2 className="font-semibold">预览</h2>
+                {previewOnly && (
+                  <button
+                    onClick={() => {
+                      setPreviewOnly(null);
+                      setTargetClass('');
+                      updatePreview(htmlCode);
+                    }}
+                    className="text-sm text-blue-500 hover:text-blue-700"
+                  >
+                    显示完整预览
+                  </button>
+                )}
               </div>
               <div className="p-4">
                 <div
