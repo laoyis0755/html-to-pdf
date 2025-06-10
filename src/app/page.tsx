@@ -5,6 +5,16 @@ import Editor from '@monaco-editor/react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
+interface StyleGroups {
+  layout: string[];
+  positioning: string[];
+  background: string[];
+  text: string[];
+  effects: string[];
+  animation: string[];
+  interaction: string[];
+}
+
 export default function Home() {
   const [htmlCode, setHtmlCode] = useState('<div style="background: #f0f0f0; padding: 20px;">\n  <h1 style="color: #333; margin-bottom: 10px;">Hello World</h1>\n  <p style="color: #666;">Edit this HTML code!</p>\n  <div class="export-this" style="background: #fff; padding: 15px; border-radius: 8px; margin-top: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">\n    <h2 style="color: #2c5282;">这个 div 将被导出</h2>\n    <p style="color: #4a5568;">因为它有 export-this 类名</p>\n  </div>\n  <div class="dont-export" style="background: #e2e8f0; padding: 15px; margin-top: 20px;">\n    <p style="color: #718096;">这个 div 不会被导出</p>\n  </div>\n</div>');
   const [targetClass, setTargetClass] = useState('');
@@ -32,26 +42,130 @@ export default function Home() {
   const copyComputedStyles = (source: HTMLElement, target: HTMLElement) => {
     const computedStyle = window.getComputedStyle(source);
     
-    // 复制所有计算样式
-    Array.from(computedStyle).forEach(key => {
-      target.style.setProperty(key, computedStyle.getPropertyValue(key), computedStyle.getPropertyPriority(key));
-    });
+    // 复制计算样式
+    try {
+      // 布局相关样式
+      [
+        'display', 'flex-direction', 'flex-wrap', 'justify-content',
+        'align-items', 'align-content', 'gap', 'grid-template-columns',
+        'grid-template-rows', 'grid-gap', 'margin', 'padding', 'width',
+        'height', 'min-width', 'min-height', 'max-width', 'max-height'
+      ].forEach(prop => {
+        const value = computedStyle.getPropertyValue(prop);
+        if (value && value !== 'none' && value !== 'auto') {
+          target.style.setProperty(prop, value);
+        }
+      });
 
-    // 特别处理一些重要的样式属性
-    ['margin', 'padding', 'border', 'background', 'color', 'font-family', 'font-size', 'line-height'].forEach(prop => {
-      target.style.setProperty(prop, computedStyle.getPropertyValue(prop), computedStyle.getPropertyPriority(prop));
-    });
+      // 定位和变换
+      [
+        'position', 'top', 'right', 'bottom', 'left', 'z-index',
+        'transform', 'transform-origin', 'transform-style',
+        'perspective', 'perspective-origin'
+      ].forEach(prop => {
+        const value = computedStyle.getPropertyValue(prop);
+        if (value && value !== 'none' && value !== 'static') {
+          target.style.setProperty(prop, value);
+        }
+      });
+
+      // 背景相关
+      const background = computedStyle.getPropertyValue('background');
+      if (background.includes('gradient')) {
+        // 特殊处理渐变背景
+        target.style.background = background;
+      } else {
+        [
+          'background-color', 'background-image', 'background-repeat',
+          'background-position', 'background-size', 'background-attachment',
+          'background-clip', 'background-origin'
+        ].forEach(prop => {
+          const value = computedStyle.getPropertyValue(prop);
+          if (value && value !== 'none') {
+            target.style.setProperty(prop, value);
+          }
+        });
+      }
+
+      // 边框和圆角
+      [
+        'border', 'border-radius', 'border-color', 'border-width',
+        'border-style', 'box-shadow', 'outline'
+      ].forEach(prop => {
+        const value = computedStyle.getPropertyValue(prop);
+        if (value && value !== 'none') {
+          target.style.setProperty(prop, value);
+        }
+      });
+
+      // 文本样式
+      [
+        'color', 'font-family', 'font-size', 'font-weight', 'font-style',
+        'line-height', 'letter-spacing', 'text-align', 'text-transform',
+        'text-decoration', 'text-shadow', 'white-space'
+      ].forEach(prop => {
+        const value = computedStyle.getPropertyValue(prop);
+        if (value && value !== 'normal') {
+          target.style.setProperty(prop, value);
+        }
+      });
+
+      // 特效和滤镜
+      ['opacity', 'filter', 'backdrop-filter'].forEach(prop => {
+        const value = computedStyle.getPropertyValue(prop);
+        if (value && value !== 'none') {
+          target.style.setProperty(prop, value);
+        }
+      });
+
+      // 混合模式
+      ['mix-blend-mode', 'isolation'].forEach(prop => {
+        const value = computedStyle.getPropertyValue(prop);
+        if (value && value !== 'normal') {
+          target.style.setProperty(prop, value);
+        }
+      });
+
+    } catch (e) {
+      console.warn('复制计算样式时出错:', e);
+    }
 
     // 处理伪元素
     ['::before', '::after'].forEach(pseudo => {
-      const pseudoStyle = window.getComputedStyle(source, pseudo);
-      if (pseudoStyle.content !== 'none' && pseudoStyle.content !== '') {
-        const pseudoElement = document.createElement('span');
-        pseudoElement.setAttribute('data-pseudo', pseudo);
-        Array.from(pseudoStyle).forEach(key => {
-          pseudoElement.style.setProperty(key, pseudoStyle.getPropertyValue(key));
-        });
-        target.appendChild(pseudoElement);
+      try {
+        const pseudoStyle = window.getComputedStyle(source, pseudo);
+        const content = pseudoStyle.getPropertyValue('content');
+        
+        if (content && content !== 'none' && content !== '') {
+          const pseudoElement = document.createElement('span');
+          pseudoElement.setAttribute('data-pseudo', pseudo);
+          
+          // 复制所有伪元素样式
+          Array.from(pseudoStyle).forEach(prop => {
+            try {
+              const value = pseudoStyle.getPropertyValue(prop);
+              if (value && value !== 'none' && value !== 'normal') {
+                pseudoElement.style.setProperty(prop, value);
+              }
+            } catch (e) {
+              // 忽略不支持的属性
+            }
+          });
+          
+          // 特殊处理定位
+          pseudoElement.style.position = 'absolute';
+          if (pseudo === '::before') {
+            if (target.firstChild) {
+              target.insertBefore(pseudoElement, target.firstChild);
+            } else {
+              target.appendChild(pseudoElement);
+            }
+          } else {
+            target.appendChild(pseudoElement);
+          }
+        }
+      } catch (e) {
+        console.warn(`处理伪元素 ${pseudo} 时出错:`, e);
       }
     });
   };
@@ -270,136 +384,200 @@ export default function Home() {
         elements.forEach(el => {
           const computedStyle = window.getComputedStyle(el);
           
-          // 复制重要的样式属性
-          [
+          // 样式属性分组
+          const styleGroups = {
             // 布局相关
-            'margin', 'padding', 'border', 'border-radius', 'width', 'height',
-            'min-width', 'min-height', 'max-width', 'max-height',
-            'display', 'flex-direction', 'flex-wrap', 'flex-grow',
-            'justify-content', 'align-items', 'align-self', 'gap',
-            'grid-template-columns', 'grid-template-rows', 'grid-gap',
+            layout: [
+              // Flexbox
+              'display', 'flex-direction', 'flex-wrap', 'flex-flow', 'flex-grow',
+              'flex-shrink', 'flex-basis', 'flex', 'justify-content', 'align-items',
+              'align-self', 'align-content', 'gap', 'row-gap', 'column-gap',
+              'order', 'flex-flow',
+              // Grid
+              'grid-template-columns', 'grid-template-rows', 'grid-template-areas',
+              'grid-template', 'grid-auto-columns', 'grid-auto-rows', 'grid-auto-flow',
+              'grid-column-start', 'grid-column-end', 'grid-row-start', 'grid-row-end',
+              'grid-column', 'grid-row', 'grid-area', 'grid-gap',
+              // Box Model
+              'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+              'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+              'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height',
+              'box-sizing', 'border', 'border-radius'
+            ],
             
             // 定位相关
-            'position', 'top', 'left', 'right', 'bottom', 'z-index',
-            'transform', 'transform-origin',
+            positioning: [
+              'position', 'top', 'right', 'bottom', 'left', 'z-index',
+              'float', 'clear', 'transform', 'transform-origin', 'transform-style',
+              'perspective', 'perspective-origin', 'backface-visibility',
+              'clip', 'clip-path', 'contain'
+            ],
             
             // 背景相关
-            'background', 'background-color', 'background-image',
-            'background-size', 'background-position', 'background-repeat',
-            'background-attachment', 'background-clip', 'background-origin',
-            'background-blend-mode',
+            background: [
+              'background', 'background-color', 'background-image',
+              'background-repeat', 'background-position', 'background-size',
+              'background-attachment', 'background-origin', 'background-clip',
+              'background-blend-mode', 'isolation', 'mix-blend-mode'
+            ],
             
             // 文本相关
-            'color', 'font-family', 'font-size', 'font-weight',
-            'font-style', 'line-height', 'text-align', 'text-decoration',
-            'text-transform', 'letter-spacing', 'word-spacing',
-            'white-space', 'overflow', 'text-overflow',
+            text: [
+              'color', 'font-family', 'font-size', 'font-weight', 'font-style',
+              'font-variant', 'font-stretch', 'font-kerning', 'font-feature-settings',
+              'line-height', 'letter-spacing', 'word-spacing', 'text-align',
+              'text-transform', 'text-decoration', 'text-shadow', 'text-rendering',
+              'text-overflow', 'white-space', 'word-break', 'word-wrap',
+              'writing-mode', 'vertical-align', 'unicode-bidi', 'direction',
+              'text-combine-upright', 'text-orientation'
+            ],
             
             // 效果相关
-            'opacity', 'box-shadow', 'text-shadow', 'filter',
-            'backdrop-filter', 'mix-blend-mode', 'isolation',
+            effects: [
+              'opacity', 'visibility', 'box-shadow', 'text-shadow',
+              'filter', 'backdrop-filter', 'mask', 'mask-image',
+              'clip-path', 'pointer-events', 'overflow', 'overflow-x', 'overflow-y',
+              'scroll-behavior', 'scroll-snap-type', 'scroll-snap-align',
+              'object-fit', 'object-position'
+            ],
             
-            // 动画相关（静态属性）
-            'transform-style', 'perspective', 'backface-visibility',
+            // 动画相关
+            animation: [
+              'transition', 'transition-property', 'transition-duration',
+              'transition-timing-function', 'transition-delay',
+              'animation', 'animation-name', 'animation-duration',
+              'animation-timing-function', 'animation-delay',
+              'animation-iteration-count', 'animation-direction',
+              'animation-fill-mode', 'animation-play-state',
+              'will-change'
+            ],
             
-            // 其他
-            'cursor', 'pointer-events', 'user-select'
-          ].forEach(prop => {
-            const value = computedStyle.getPropertyValue(prop);
-            if (value && value !== 'none' && value !== 'auto' && value !== 'normal') {
-              try {
-                // 尝试保留带前缀的属性
-                const prefixes = ['-webkit-', '-moz-', '-ms-', '-o-', ''];
-                prefixes.forEach(prefix => {
-                  const prefixedValue = computedStyle.getPropertyValue(prefix + prop);
-                  if (prefixedValue && prefixedValue !== 'none' && prefixedValue !== 'auto' && prefixedValue !== 'normal') {
-                    el.style.setProperty(prefix + prop, prefixedValue);
-                  }
-                });
-              } catch (e) {
-                // 如果出错，至少设置无前缀的版本
-                el.style[prop as any] = value;
+            // 交互相关
+            interaction: [
+              'cursor', 'pointer-events', 'user-select', 'resize',
+              'touch-action', 'scroll-behavior', 'overscroll-behavior',
+              'appearance', '-webkit-appearance'
+            ]
+          };
+
+          // 处理每个样式组
+          Object.values(styleGroups).flat().forEach(prop => {
+            try {
+              const value = computedStyle.getPropertyValue(prop);
+              if (value && value !== 'none' && value !== 'auto' && value !== 'normal') {
+                // 处理特殊属性
+                if (prop.includes('background') && value.includes('gradient')) {
+                  // 保存完整的渐变字符串
+                  el.style.setProperty(prop, value);
+                } else if (prop === 'transform' && value !== 'none') {
+                  // 确保变换属性正确应用
+                  el.style.transform = value;
+                  const origin = computedStyle.getPropertyValue('transform-origin');
+                  if (origin) el.style.transformOrigin = origin;
+                } else if (prop.startsWith('filter') && value !== 'none') {
+                  // 确保滤镜效果正确应用
+                  el.style.setProperty(prop, value);
+                } else {
+                  // 尝试保留带前缀的属性
+                  const prefixes = ['-webkit-', '-moz-', '-ms-', '-o-', ''];
+                  prefixes.forEach(prefix => {
+                    const prefixedProp = prefix + prop;
+                    const prefixedValue = computedStyle.getPropertyValue(prefixedProp);
+                    if (prefixedValue && prefixedValue !== 'none' && prefixedValue !== 'auto' && prefixedValue !== 'normal') {
+                      try {
+                        el.style.setProperty(prefixedProp, prefixedValue);
+                      } catch (e) {
+                        console.warn(`无法设置属性 ${prefixedProp}:`, e);
+                      }
+                    }
+                  });
+                }
               }
+            } catch (e) {
+              console.warn(`处理样式属性 ${prop} 时出错:`, e);
             }
           });
 
-          // 特殊处理 header 元素
-          if (el.classList.contains('header')) {
-            el.style.background = 'linear-gradient(120deg, #405de6, #5851db, #833ab4, #c13584, #e1306c, #fd1d1d)';
-            el.style.position = 'relative';
-            el.style.width = '100%';
-            el.style.minHeight = '200px';
-            el.style.overflow = 'visible';
-            
-            // 修复装饰元素位置
-            const decorElements = el.getElementsByClassName('flower-decor');
-            if (decorElements.length > 0 && decorElements[0] instanceof HTMLElement) {
-              const decor = decorElements[0] as HTMLElement;
-              decor.style.position = 'absolute';
-              decor.style.right = '20px';
-              decor.style.top = '20px';
-              decor.style.fontSize = '100px';
-              decor.style.opacity = '0.15';
-              decor.style.zIndex = '1';
-            }
+          // 特殊处理伪元素
+          ['::before', '::after'].forEach(pseudo => {
+            try {
+              const pseudoStyle = window.getComputedStyle(el, pseudo);
+              const content = pseudoStyle.getPropertyValue('content');
+              
+              if (content && content !== 'none' && content !== '') {
+                const pseudoElement = document.createElement('span');
+                pseudoElement.setAttribute('data-pseudo', pseudo);
+                
+                // 复制伪元素的所有样式
+                Object.values(styleGroups).flat().forEach(prop => {
+                  try {
+                    const value = pseudoStyle.getPropertyValue(prop);
+                    if (value && value !== 'none' && value !== 'auto' && value !== 'normal') {
+                      // 特殊处理定位属性
+                      if (prop === 'position') {
+                        pseudoElement.style.position = 'absolute';
+                      } else if (['top', 'right', 'bottom', 'left'].includes(prop)) {
+                        pseudoElement.style[prop as any] = value;
+                      } else {
+                        pseudoElement.style.setProperty(prop, value);
+                      }
+                    }
+                  } catch (e) {
+                    console.warn(`处理伪元素样式 ${prop} 时出错:`, e);
+                  }
+                });
 
-            // 修复内容布局
-            const contentElements = el.getElementsByClassName('header-content');
-            if (contentElements.length > 0 && contentElements[0] instanceof HTMLElement) {
-              const content = contentElements[0] as HTMLElement;
-              content.style.position = 'relative';
-              content.style.zIndex = '2';
-              content.style.padding = '30px';
-              
-              // 修复标题和段落样式
-              const titles = content.getElementsByTagName('h1');
-              if (titles.length > 0) {
-                titles[0].style.fontSize = '38px';
-                titles[0].style.fontWeight = '700';
-                titles[0].style.marginBottom = '10px';
-              }
-              
-              const paragraphs = content.getElementsByTagName('p');
-              Array.from(paragraphs).forEach(p => {
-                p.style.marginBottom = '15px';
-                p.style.lineHeight = '1.6';
-                if (p.classList.contains('slogan')) {
-                  p.style.display = 'inline-block';
-                  p.style.marginTop = '20px';
-                  p.style.background = 'rgba(255, 255, 255, 0.15)';
-                  p.style.padding = '8px 15px';
-                  p.style.borderRadius = '50px';
+                // 插入伪元素
+                if (pseudo === '::before') {
+                  if (el.firstChild) {
+                    el.insertBefore(pseudoElement, el.firstChild);
+                  } else {
+                    el.appendChild(pseudoElement);
+                  }
+                } else {
+                  el.appendChild(pseudoElement);
                 }
-              });
+              }
+            } catch (e) {
+              console.warn(`处理伪元素 ${pseudo} 时出错:`, e);
+            }
+          });
+
+          // 特殊处理渐变和背景
+          const background = computedStyle.getPropertyValue('background');
+          if (background.includes('gradient')) {
+            el.style.background = background;
+          }
+
+          // 处理多重背景
+          const backgroundImages = computedStyle.getPropertyValue('background-image');
+          if (backgroundImages && backgroundImages !== 'none') {
+            el.style.backgroundImage = backgroundImages;
+          }
+
+          // 处理变换和透视
+          if (computedStyle.transform !== 'none') {
+            el.style.transform = computedStyle.transform;
+            el.style.transformOrigin = computedStyle.transformOrigin;
+            if (computedStyle.perspective !== 'none') {
+              el.style.perspective = computedStyle.perspective;
+              el.style.perspectiveOrigin = computedStyle.perspectiveOrigin;
             }
           }
 
-          // 处理伪元素
-          ['::before', '::after'].forEach(pseudo => {
-            const pseudoStyle = window.getComputedStyle(el, pseudo);
-            if (pseudoStyle.content !== 'none' && pseudoStyle.content !== '') {
-              const pseudoElement = document.createElement('span');
-              pseudoElement.setAttribute('data-pseudo', pseudo);
-              
-              // 复制伪元素的样式
-              Array.from(pseudoStyle).forEach(prop => {
-                try {
-                  const value = pseudoStyle.getPropertyValue(prop);
-                  if (value && value !== 'none' && value !== 'auto' && value !== 'normal') {
-                    pseudoElement.style.setProperty(prop, value);
-                  }
-                } catch (e) {
-                  // 忽略不支持的属性
-                }
-              });
-              
-              // 确保伪元素的定位
-              pseudoElement.style.position = 'absolute';
-              if (pseudo === '::before') {
-                el.insertBefore(pseudoElement, el.firstChild);
-              } else {
-                el.appendChild(pseudoElement);
-              }
+          // 处理遮罩和剪切
+          if (computedStyle.clipPath !== 'none') {
+            el.style.clipPath = computedStyle.clipPath;
+          }
+          if (computedStyle.mask !== 'none') {
+            el.style.mask = computedStyle.mask;
+          }
+
+          // 确保滤镜效果正确应用
+          ['filter', 'backdrop-filter'].forEach(prop => {
+            const value = computedStyle.getPropertyValue(prop);
+            if (value && value !== 'none') {
+              el.style[prop as any] = value;
             }
           });
         });
