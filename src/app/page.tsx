@@ -941,13 +941,91 @@ export default function Home() {
 
       // 创建一个新的容器
       const container = document.createElement('div');
-      container.style.width = '800px'; // 设置固定宽度以确保一致性
+      container.style.width = '800px';
       container.style.position = 'absolute';
       container.style.left = '-9999px';
       document.body.appendChild(container);
 
-      // 克隆内容
+      // 克隆内容并清理 Vue 相关属性
       const clone = previewRef.current.cloneNode(true) as HTMLElement;
+
+      // 清理 Vue 相关属性的函数
+      const cleanVueAttributes = (element: Element) => {
+        // 移除所有 Vue 相关属性
+        const attrs = Array.from(element.attributes);
+        attrs.forEach(attr => {
+          if (attr.name.startsWith('v-') || 
+              attr.name.startsWith(':') || 
+              attr.name.startsWith('@') ||
+              attr.name.includes('data-v')) {
+            element.removeAttribute(attr.name);
+          }
+        });
+
+        // 处理子元素
+        Array.from(element.children).forEach(child => {
+          cleanVueAttributes(child);
+        });
+
+        // 如果是空的绑定表达式 {{ }}，替换为空字符串
+        if (element.textContent && element.textContent.trim().match(/^{{.*}}$/)) {
+          element.textContent = '';
+        }
+      };
+
+      // 处理动态绑定的 class
+      const resolveDynamicClasses = (element: Element) => {
+        const dynamicClass = element.getAttribute(':class');
+        if (dynamicClass) {
+          // 如果是 active 类的绑定，根据当前状态确定是否应该有这个类
+          if (dynamicClass.includes('active')) {
+            element.classList.add('active');
+          }
+          element.removeAttribute(':class');
+        }
+      };
+
+      // 清理 Vue 相关属性
+      cleanVueAttributes(clone);
+
+      // 处理所有元素的动态类
+      const allElements = clone.getElementsByTagName('*');
+      Array.from(allElements).forEach(resolveDynamicClasses);
+
+      // 处理客户列表（替换 v-for 生成的内容）
+      const clientsContainer = clone.querySelector('.clients-container');
+      if (clientsContainer) {
+        const clients = [
+          '深圳宝安国际机场', '青岛胶东国际机场', '重庆江北国际机场',
+          '华为东莞基地', '华为坂田基地', '华为团泊洼基地',
+          // ... 其他客户
+        ];
+        clientsContainer.innerHTML = clients.map(client => 
+          `<div class="client-tag">${client}</div>`
+        ).join('');
+      }
+
+      // 处理选项卡（替换 v-for 生成的内容）
+      const tabControls = clone.querySelector('.tab-controls');
+      if (tabControls) {
+        const tabs = ['基本信息', '业务信息', '公司简介'];
+        tabControls.innerHTML = tabs.map((tab, index) => 
+          `<div class="tab${index === 0 ? ' active' : ''}">${tab}</div>`
+        ).join('');
+      }
+
+      // 处理 v-show（根据当前状态确定是否显示）
+      const sections = clone.querySelectorAll('[v-show]');
+      sections.forEach((section: Element) => {
+        const vShow = section.getAttribute('v-show');
+        if (vShow?.includes('activeTab === 0')) {
+          section.removeAttribute('v-show');
+          section.setAttribute('style', 'display: block');
+        } else {
+          section.remove(); // 移除非当前显示的部分
+        }
+      });
+
       container.appendChild(clone);
 
       // 递归处理元素样式
@@ -955,63 +1033,29 @@ export default function Home() {
         if (el instanceof HTMLElement) {
           const styles = window.getComputedStyle(el);
           
-          // 复制所有重要样式
-          const importantStyles = [
-            // 布局
-            'display', 'position', 'top', 'right', 'bottom', 'left',
-            'width', 'height', 'margin', 'padding', 'border',
-            'flex', 'flex-direction', 'flex-wrap', 'justify-content', 'align-items',
-            'grid-template-columns', 'grid-template-rows', 'gap',
-            
-            // 外观
-            'background', 'background-color', 'background-image',
-            'background-position', 'background-size', 'background-repeat',
-            'border-radius', 'box-shadow', 'opacity',
-            
-            // 文字
-            'color', 'font-family', 'font-size', 'font-weight',
-            'text-align', 'line-height', 'letter-spacing',
-            'text-transform', 'text-decoration',
-            
-            // 变换
-            'transform', 'transform-origin', 'perspective',
-            
-            // 渐变和效果
-            'filter', 'backdrop-filter',
-            'mix-blend-mode', 'isolation'
-          ];
-
-          let styleString = '';
-          importantStyles.forEach(prop => {
-            const value = styles.getPropertyValue(prop).trim();
-            if (value && value !== 'none' && value !== 'normal' && value !== 'auto') {
-              // 特殊处理渐变背景
-              if (prop === 'background-image' && value.includes('gradient')) {
-                styleString += `background-image: ${value};`;
-              }
-              // 特殊处理 transform
-              else if (prop === 'transform' && value !== 'none') {
-                styleString += `transform: ${value};`;
-                const origin = styles.getPropertyValue('transform-origin');
-                if (origin) styleString += `transform-origin: ${origin};`;
-              }
-              // 处理其他样式
-              else {
-                styleString += `${prop}: ${value};`;
-              }
-            }
+          // 复制所有重要样式（保持原有的样式处理逻辑）
+          [
+            'padding', 'margin', 'border', 'border-radius',
+            'box-shadow', 'color', 'font-family', 'font-size',
+            'line-height', 'text-align', 'background', 'position',
+            'display', 'align-items', 'justify-content',
+            'flex-direction', 'gap', 'overflow'
+          ].forEach(prop => {
+            const value = styles.getPropertyValue(prop);
+            if (value) el.style.setProperty(prop, value);
           });
-
-          // 应用样式
-          el.style.cssText += styleString;
-
-          // 如果元素是图标，确保正确渲染
+          
+          // 特别处理渐变背景
+          if (el.classList.contains('header')) {
+            el.style.background = 'linear-gradient(120deg, #405de6, #5851db, #833ab4, #c13584, #e1306c, #fd1d1d)';
+          }
+          
+          // 特别处理图标
           if (el.classList.contains('fas') || el.classList.contains('far') || el.classList.contains('fab')) {
             const originalContent = window.getComputedStyle(el, ':before').content;
             if (originalContent && originalContent !== 'none') {
               el.style.fontFamily = "'Font Awesome 6 Free', 'Font Awesome 6 Brands'";
               el.style.fontWeight = '900';
-              el.setAttribute('data-fa-processed', 'true');
             }
           }
         }
@@ -1030,7 +1074,7 @@ export default function Home() {
       svg.setAttribute('height', container.offsetHeight.toString());
       svg.setAttribute('viewBox', `0 0 800 ${container.offsetHeight}`);
 
-      // 添加字体和图标定义
+      // 添加样式定义
       const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
       const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
       style.textContent = `
@@ -1040,19 +1084,28 @@ export default function Home() {
       defs.appendChild(style);
       svg.appendChild(defs);
 
-      // 创建foreignObject
+      // 创建 foreignObject
       const foreignObject = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
       foreignObject.setAttribute('width', '100%');
       foreignObject.setAttribute('height', '100%');
-      foreignObject.innerHTML = clone.outerHTML;
+      foreignObject.setAttribute('x', '0');
+      foreignObject.setAttribute('y', '0');
+
+      // 添加内容到 foreignObject
+      const innerHtml = clone.outerHTML
+        .replace(/\sv-[\w-]+="[^"]*"/g, '') // 移除任何残留的 Vue 指令
+        .replace(/\s:[\w-]+="[^"]*"/g, '') // 移除任何残留的 Vue 绑定
+        .replace(/\s@[\w-]+="[^"]*"/g, ''); // 移除任何残留的 Vue 事件
+      foreignObject.innerHTML = innerHtml;
+
       svg.appendChild(foreignObject);
 
       // 序列化 SVG
       const serializer = new XMLSerializer();
       let svgString = serializer.serializeToString(svg);
 
-      // 添加必要的XML和样式声明
-      svgString = `<?xml version="1.0" encoding="UTF-8"?>
+      // 添加 XML 声明
+      svgString = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 ${svgString}`;
 
