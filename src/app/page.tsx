@@ -754,6 +754,175 @@ export default function Home() {
     }
   };
 
+  const exportToJpg = async () => {
+    if (!previewRef.current) return;
+    try {
+      setLoading(true);
+
+      // 在导出前应用字体和外部样式
+      const element = previewRef.current;
+      await document.fonts.ready;
+
+      // 创建一个新的容器用于导出
+      const exportContainer = document.createElement('div');
+      
+      // 确保字体和图标加载
+      const fontAwesomeLink = document.createElement('link');
+      fontAwesomeLink.rel = 'stylesheet';
+      fontAwesomeLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+      document.head.appendChild(fontAwesomeLink);
+
+      // 等待字体加载完成
+      await new Promise((resolve) => {
+        fontAwesomeLink.onload = resolve;
+      });
+
+      exportContainer.style.cssText = `
+        background: #ffffff;
+        width: 1920px;
+        padding: 20px;
+        position: fixed;
+        top: 0;
+        left: -9999px;
+        font-family: 'Noto Sans SC', Arial, sans-serif;
+      `;
+      
+      // 保持所有图标和样式
+      const styleLinks = Array.from(document.getElementsByTagName('link'))
+        .filter(link => link.rel === 'stylesheet')
+        .map(link => link.cloneNode(true));
+      
+      const tempHead = document.createElement('div');
+      styleLinks.forEach(link => tempHead.appendChild(link));
+      
+      exportContainer.innerHTML = `${tempHead.innerHTML}${element.innerHTML}`;
+      document.body.appendChild(exportContainer);
+
+      // 使用更高的比例以获得更好的质量
+      const canvas = await html2canvas(exportContainer, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        onclone: (doc) => {
+          const copyStyles = (source: HTMLElement, target: HTMLElement) => {
+            const styles = window.getComputedStyle(source);
+            Array.from(styles).forEach(key => {
+              target.style.setProperty(key, styles.getPropertyValue(key));
+            });
+          };
+
+          const sourceElements = doc.getElementsByTagName('*');
+          Array.from(sourceElements).forEach(el => {
+            if (el instanceof HTMLElement) {
+              copyStyles(el, el);
+              el.style.transform = 'none';
+              el.style.transition = 'none';
+            }
+          });
+        }
+      });
+
+      document.body.removeChild(exportContainer);
+
+      // 创建下载链接
+      const link = document.createElement('a');
+      link.download = 'exported.jpg';
+      link.href = canvas.toDataURL('image/jpeg', 1.0);
+      link.click();
+    } catch (error: any) {
+      console.error('导出JPG失败:', error);
+      alert('导出JPG时发生错误：' + (error?.message || '未知错误'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const exportToSvg = async () => {
+    if (!previewRef.current) return;
+    try {
+      setLoading(true);
+
+      // 在导出前应用字体和外部样式
+      const element = previewRef.current;
+      await document.fonts.ready;
+
+      // 创建一个新的容器用于导出
+      const exportContainer = document.createElement('div');
+      
+      // 确保字体和图标加载
+      const fontAwesomeLink = document.createElement('link');
+      fontAwesomeLink.rel = 'stylesheet';
+      fontAwesomeLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+      document.head.appendChild(fontAwesomeLink);
+
+      // 等待字体加载完成
+      await new Promise((resolve) => {
+        fontAwesomeLink.onload = resolve;
+      });
+
+      // 克隆当前内容
+      const clone = element.cloneNode(true) as HTMLElement;
+      
+      // 收集所有计算样式
+      const collectStyles = (el: HTMLElement): string => {
+        const style = window.getComputedStyle(el);
+        let css = '{';
+        for (const prop of style) {
+          const value = style.getPropertyValue(prop);
+          if (value) {
+            css += `${prop}:${value};`;
+          }
+        }
+        css += '}';
+        return css;
+      };
+
+      // 递归处理所有元素
+      const processElement = (el: HTMLElement) => {
+        const style = collectStyles(el);
+        el.setAttribute('style', style);
+        Array.from(el.children).forEach(child => {
+          if (child instanceof HTMLElement) {
+            processElement(child);
+          }
+        });
+      };
+
+      processElement(clone as HTMLElement);
+
+      // 创建SVG
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      svg.setAttribute('width', '1920');
+      svg.setAttribute('height', element.offsetHeight.toString());
+      
+      // 创建外来对象
+      const foreignObject = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+      foreignObject.setAttribute('width', '100%');
+      foreignObject.setAttribute('height', '100%');
+      foreignObject.appendChild(clone);
+      svg.appendChild(foreignObject);
+
+      // 将SVG转换为字符串
+      const serializer = new XMLSerializer();
+      const svgString = serializer.serializeToString(svg);
+      
+      // 创建下载链接
+      const link = document.createElement('a');
+      link.download = 'exported.svg';
+      const blob = new Blob([svgString], { type: 'image/svg+xml' });
+      link.href = URL.createObjectURL(blob);
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (error: any) {
+      console.error('导出SVG失败:', error);
+      alert('导出SVG时发生错误：' + (error?.message || '未知错误'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 处理类名选择变化
   const handleClassSelect = (className: string) => {
     setTargetClass(className);
@@ -872,20 +1041,38 @@ export default function Home() {
               </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-4">
-              <button
-                onClick={generateStaticHtml}
-                disabled={loading}
-                className={`w-full ${loading ? 'bg-gray-400' : 'bg-green-500 hover:bg-green-600'} text-white font-semibold py-2 px-4 rounded transition-colors`}
-              >
-                {loading ? '处理中...' : '生成静态HTML'}
-              </button>
-              <button
-                onClick={exportToPdf}
-                disabled={loading}
-                className={`w-full ${loading ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'} text-white font-semibold py-2 px-4 rounded transition-colors`}
-              >
-                {loading ? '导出中...' : '导出为 PDF'}
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={generateStaticHtml}
+                  disabled={loading}
+                  className={`w-full ${loading ? 'bg-gray-400' : 'bg-green-500 hover:bg-green-600'} text-white font-semibold py-2 px-4 rounded transition-colors`}
+                >
+                  {loading ? '处理中...' : '生成静态HTML'}
+                </button>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={exportToPdf}
+                    disabled={loading}
+                    className={`w-full ${loading ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'} text-white font-semibold py-2 px-4 rounded transition-colors`}
+                  >
+                    {loading ? '导出中...' : '导出 PDF'}
+                  </button>
+                  <button
+                    onClick={exportToJpg}
+                    disabled={loading}
+                    className={`w-full ${loading ? 'bg-gray-400' : 'bg-purple-500 hover:bg-purple-600'} text-white font-semibold py-2 px-4 rounded transition-colors`}
+                  >
+                    {loading ? '导出中...' : '导出 JPG'}
+                  </button>
+                  <button
+                    onClick={exportToSvg}
+                    disabled={loading}
+                    className={`w-full ${loading ? 'bg-gray-400' : 'bg-pink-500 hover:bg-pink-600'} text-white font-semibold py-2 px-4 rounded transition-colors`}
+                  >
+                    {loading ? '导出中...' : '导出 SVG'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
