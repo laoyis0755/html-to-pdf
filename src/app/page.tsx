@@ -928,88 +928,146 @@ export default function Home() {
     try {
       setLoading(true);
 
-      // 创建一个新的容器用于处理内容
-      const container = document.createElement('div');
-      const element = previewRef.current;
+      // 等待字体和图标加载
+      await document.fonts.ready;
+      const fontAwesomeLink = document.querySelector('link[href*="font-awesome"]');
+      if (!fontAwesomeLink) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+        document.head.appendChild(link);
+        await new Promise(resolve => link.onload = resolve);
+      }
 
-      // 递归处理元素，将所有文本内容转换为 P 标签
-      const processElement = (el: Element): string => {
-        let content = '';
-        
-        // 处理文本节点
-        if (el.childNodes.length === 0 || (el.childNodes.length === 1 && el.childNodes[0].nodeType === Node.TEXT_NODE)) {
-          const text = el.textContent?.trim();
-          if (text) {
-            // 获取计算样式
-            const styles = window.getComputedStyle(el as HTMLElement);
-            const styleString = [
-              'color', 'font-size', 'font-weight', 'font-style', 'text-align',
-              'margin', 'padding', 'line-height'
-            ].map(prop => {
-              const value = styles.getPropertyValue(prop);
-              return value ? `${prop}:${value};` : '';
-            }).filter(Boolean).join('');
+      // 创建一个新的容器
+      const container = document.createElement('div');
+      container.style.width = '800px'; // 设置固定宽度以确保一致性
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      document.body.appendChild(container);
+
+      // 克隆内容
+      const clone = previewRef.current.cloneNode(true) as HTMLElement;
+      container.appendChild(clone);
+
+      // 递归处理元素样式
+      const processElement = (el: Element) => {
+        if (el instanceof HTMLElement) {
+          const styles = window.getComputedStyle(el);
+          
+          // 复制所有重要样式
+          const importantStyles = [
+            // 布局
+            'display', 'position', 'top', 'right', 'bottom', 'left',
+            'width', 'height', 'margin', 'padding', 'border',
+            'flex', 'flex-direction', 'flex-wrap', 'justify-content', 'align-items',
+            'grid-template-columns', 'grid-template-rows', 'gap',
             
-            return `<p style="${styleString}">${text}</p>`;
+            // 外观
+            'background', 'background-color', 'background-image',
+            'background-position', 'background-size', 'background-repeat',
+            'border-radius', 'box-shadow', 'opacity',
+            
+            // 文字
+            'color', 'font-family', 'font-size', 'font-weight',
+            'text-align', 'line-height', 'letter-spacing',
+            'text-transform', 'text-decoration',
+            
+            // 变换
+            'transform', 'transform-origin', 'perspective',
+            
+            // 渐变和效果
+            'filter', 'backdrop-filter',
+            'mix-blend-mode', 'isolation'
+          ];
+
+          let styleString = '';
+          importantStyles.forEach(prop => {
+            const value = styles.getPropertyValue(prop).trim();
+            if (value && value !== 'none' && value !== 'normal' && value !== 'auto') {
+              // 特殊处理渐变背景
+              if (prop === 'background-image' && value.includes('gradient')) {
+                styleString += `background-image: ${value};`;
+              }
+              // 特殊处理 transform
+              else if (prop === 'transform' && value !== 'none') {
+                styleString += `transform: ${value};`;
+                const origin = styles.getPropertyValue('transform-origin');
+                if (origin) styleString += `transform-origin: ${origin};`;
+              }
+              // 处理其他样式
+              else {
+                styleString += `${prop}: ${value};`;
+              }
+            }
+          });
+
+          // 应用样式
+          el.style.cssText += styleString;
+
+          // 如果元素是图标，确保正确渲染
+          if (el.classList.contains('fas') || el.classList.contains('far') || el.classList.contains('fab')) {
+            const originalContent = window.getComputedStyle(el, ':before').content;
+            if (originalContent && originalContent !== 'none') {
+              el.style.fontFamily = "'Font Awesome 6 Free', 'Font Awesome 6 Brands'";
+              el.style.fontWeight = '900';
+              el.setAttribute('data-fa-processed', 'true');
+            }
           }
-          return '';
         }
 
         // 递归处理子元素
-        Array.from(el.children).forEach(child => {
-          content += processElement(child);
-        });
-
-        return content;
+        Array.from(el.children).forEach(child => processElement(child));
       };
 
-      // 处理内容
-      const processedContent = processElement(element);
-      container.innerHTML = processedContent;
+      // 处理所有元素
+      processElement(clone);
 
       // 创建SVG
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      svg.setAttribute('width', '100%');
-      svg.setAttribute('height', '100%');
-      svg.setAttribute('viewBox', `0 0 800 ${Math.max(600, element.offsetHeight)}`);
-      
-      // 创建外来对象
+      svg.setAttribute('width', '800');
+      svg.setAttribute('height', container.offsetHeight.toString());
+      svg.setAttribute('viewBox', `0 0 800 ${container.offsetHeight}`);
+
+      // 添加字体和图标定义
+      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+      style.textContent = `
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+        @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+      `;
+      defs.appendChild(style);
+      svg.appendChild(defs);
+
+      // 创建foreignObject
       const foreignObject = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
       foreignObject.setAttribute('width', '100%');
       foreignObject.setAttribute('height', '100%');
-      foreignObject.setAttribute('x', '0');
-      foreignObject.setAttribute('y', '0');
-
-      // 添加基础样式
-      const styleElement = document.createElement('style');
-      styleElement.textContent = `
-        p {
-          margin: 0.5em 0;
-          padding: 0;
-          font-family: 'Noto Sans SC', sans-serif;
-        }
-      `;
-      
-      // 将处理后的内容添加到 foreignObject
-      const wrapper = document.createElement('div');
-      wrapper.innerHTML = `${styleElement.outerHTML}${processedContent}`;
-      foreignObject.appendChild(wrapper);
+      foreignObject.innerHTML = clone.outerHTML;
       svg.appendChild(foreignObject);
 
       // 序列化 SVG
       const serializer = new XMLSerializer();
-      const svgString = serializer.serializeToString(svg);
-      
+      let svgString = serializer.serializeToString(svg);
+
+      // 添加必要的XML和样式声明
+      svgString = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+${svgString}`;
+
       // 创建下载链接
       const link = document.createElement('a');
-      link.download = 'exported-with-p-tags.svg';
-      const blob = new Blob([svgString], { type: 'image/svg+xml' });
+      link.download = 'exported-with-styles.svg';
+      const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
       link.href = URL.createObjectURL(blob);
       link.click();
       URL.revokeObjectURL(link.href);
+
+      // 清理
+      document.body.removeChild(container);
     } catch (error: any) {
-      console.error('导出SVG（P标签版本）失败:', error);
+      console.error('导出SVG失败:', error);
       alert('导出SVG时发生错误：' + (error?.message || '未知错误'));
     } finally {
       setLoading(false);
