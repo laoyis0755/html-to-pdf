@@ -967,49 +967,16 @@ export default function Home() {
           HTML 转换工具
           <span className="block text-sm font-normal text-blue-600 mt-2">支持导出 PDF、JPG、SVG 格式</span>
         </h1>
-        
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-          <label htmlFor="targetClass" className="text-blue-900 font-medium mb-2 block">
-            选择要导出的元素
-          </label>
-          <div className="flex gap-4 items-start">
-            <div className="flex-1 space-y-2">
-              <input
-                type="text"
-                id="targetClass"
-                value={targetClass}
-                onChange={(e) => handleClassSelect(e.target.value)}
-                className="w-full p-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
-                placeholder="输入要导出的元素的类名"
-                list="class-suggestions"
-              />
-              <select
-                value={targetClass}
-                onChange={(e) => handleClassSelect(e.target.value)}
-                className="w-full p-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 bg-white transition-all"
-              >
-                <option value="">-- 选择类名 --</option>
-                {availableClasses.map((className) => (
-                  <option key={className} value={className}>
-                    {className}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="text-sm text-blue-600 pt-3 whitespace-nowrap">
-              留空则导出所有内容
-            </div>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* 编辑器部分 */}
           <div className="bg-white rounded-xl shadow-lg overflow-hidden">
             <div className="bg-blue-700 text-white p-4 flex items-center">
               <h2 className="font-medium">HTML 编辑器</h2>
             </div>
             <div className="border border-blue-100">
               <Editor
-                height="500px"
+                height="600px"
                 defaultLanguage="html"
                 value={htmlCode}
                 onChange={handleEditorChange}
@@ -1025,6 +992,7 @@ export default function Home() {
             </div>
           </div>
 
+          {/* 预览部分 */}
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
               <div className="bg-blue-700 text-white p-4 flex justify-between items-center">
@@ -1045,60 +1013,99 @@ export default function Home() {
               <div className="p-6">
                 <div
                   ref={previewRef}
-                  className="border border-blue-100 rounded-lg p-6 min-h-[500px]"
+                  className="border border-blue-100 rounded-lg p-6 min-h-[600px]"
                 />
               </div>
             </div>
+          </div>
+        </div>
 
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="space-y-4">
+        {/* 导出选项部分 */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+          {/* 选择要导出的元素 */}
+          <div className="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+            <label htmlFor="targetClass" className="text-blue-900 font-medium mb-3 block">
+              选择要导出的元素
+            </label>
+            <div className="space-y-3">
+              <input
+                type="text"
+                id="targetClass"
+                value={targetClass}
+                onChange={(e) => handleClassSelect(e.target.value)}
+                className="w-full p-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                placeholder="输入要导出的元素的类名"
+                list="class-suggestions"
+              />
+              <div className="flex gap-4 items-center">
+                <select
+                  value={targetClass}
+                  onChange={(e) => handleClassSelect(e.target.value)}
+                  className="flex-1 p-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 bg-white transition-all"
+                >
+                  <option value="">-- 选择类名 --</option>
+                  {availableClasses.map((className) => (
+                    <option key={className} value={className}>
+                      {className}
+                    </option>
+                  ))}
+                </select>
+                <div className="text-sm text-blue-600 whitespace-nowrap">
+                  留空则导出所有内容
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 导出按钮部分 */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="space-y-4">
+              <button
+                onClick={generateStaticHtml}
+                disabled={loading}
+                className={`w-full ${
+                  loading
+                    ? 'bg-gray-300'
+                    : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+                } text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200`}
+              >
+                {loading ? '处理中...' : '生成静态 HTML'}
+              </button>
+              
+              <div className="grid grid-cols-1 gap-3">
                 <button
-                  onClick={generateStaticHtml}
+                  onClick={exportToPdf}
                   disabled={loading}
                   className={`w-full ${
                     loading
                       ? 'bg-gray-300'
-                      : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+                      : 'bg-blue-500 hover:bg-blue-600 active:bg-blue-700'
                   } text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200`}
                 >
-                  {loading ? '处理中...' : '生成静态 HTML'}
+                  {loading ? '导出中...' : '导出 PDF'}
                 </button>
-                
-                <div className="grid grid-cols-3 gap-4">
-                  <button
-                    onClick={exportToPdf}
-                    disabled={loading}
-                    className={`w-full ${
-                      loading
-                        ? 'bg-gray-300'
-                        : 'bg-blue-500 hover:bg-blue-600 active:bg-blue-700'
-                    } text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200`}
-                  >
-                    {loading ? '导出中...' : '导出 PDF'}
-                  </button>
-                  <button
-                    onClick={exportToJpg}
-                    disabled={loading}
-                    className={`w-full ${
-                      loading
-                        ? 'bg-gray-300'
-                        : 'bg-blue-400 hover:bg-blue-500 active:bg-blue-600'
-                    } text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200`}
-                  >
-                    {loading ? '导出中...' : '导出 JPG'}
-                  </button>
-                  <button
-                    onClick={exportToSvg}
-                    disabled={loading}
-                    className={`w-full ${
-                      loading
-                        ? 'bg-gray-300'
-                        : 'bg-blue-400 hover:bg-blue-500 active:bg-blue-600'
-                    } text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200`}
-                  >
-                    {loading ? '导出中...' : '导出 SVG'}
-                  </button>
-                </div>
+                <button
+                  onClick={exportToJpg}
+                  disabled={loading}
+                  className={`w-full ${
+                    loading
+                      ? 'bg-gray-300'
+                      : 'bg-blue-400 hover:bg-blue-500 active:bg-blue-600'
+                  } text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200`}
+                >
+                  {loading ? '导出中...' : '导出 JPG'}
+                </button>
+                <button
+                  onClick={exportToSvg}
+                  disabled={loading}
+                  className={`w-full ${
+                    loading
+                      ? 'bg-gray-300'
+                      : 'bg-blue-400 hover:bg-blue-500 active:bg-blue-600'
+                  } text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200`}
+                >
+                  {loading ? '导出中...' : '导出 SVG'}
+                </button>
               </div>
             </div>
           </div>
