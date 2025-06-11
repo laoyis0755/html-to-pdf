@@ -923,6 +923,99 @@ export default function Home() {
     }
   };
 
+  const exportToSvgWithP = async () => {
+    if (!previewRef.current) return;
+    try {
+      setLoading(true);
+
+      // 创建一个新的容器用于处理内容
+      const container = document.createElement('div');
+      const element = previewRef.current;
+
+      // 递归处理元素，将所有文本内容转换为 P 标签
+      const processElement = (el: Element): string => {
+        let content = '';
+        
+        // 处理文本节点
+        if (el.childNodes.length === 0 || (el.childNodes.length === 1 && el.childNodes[0].nodeType === Node.TEXT_NODE)) {
+          const text = el.textContent?.trim();
+          if (text) {
+            // 获取计算样式
+            const styles = window.getComputedStyle(el as HTMLElement);
+            const styleString = [
+              'color', 'font-size', 'font-weight', 'font-style', 'text-align',
+              'margin', 'padding', 'line-height'
+            ].map(prop => {
+              const value = styles.getPropertyValue(prop);
+              return value ? `${prop}:${value};` : '';
+            }).filter(Boolean).join('');
+            
+            return `<p style="${styleString}">${text}</p>`;
+          }
+          return '';
+        }
+
+        // 递归处理子元素
+        Array.from(el.children).forEach(child => {
+          content += processElement(child);
+        });
+
+        return content;
+      };
+
+      // 处理内容
+      const processedContent = processElement(element);
+      container.innerHTML = processedContent;
+
+      // 创建SVG
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      svg.setAttribute('width', '100%');
+      svg.setAttribute('height', '100%');
+      svg.setAttribute('viewBox', `0 0 800 ${Math.max(600, element.offsetHeight)}`);
+      
+      // 创建外来对象
+      const foreignObject = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+      foreignObject.setAttribute('width', '100%');
+      foreignObject.setAttribute('height', '100%');
+      foreignObject.setAttribute('x', '0');
+      foreignObject.setAttribute('y', '0');
+
+      // 添加基础样式
+      const styleElement = document.createElement('style');
+      styleElement.textContent = `
+        p {
+          margin: 0.5em 0;
+          padding: 0;
+          font-family: 'Noto Sans SC', sans-serif;
+        }
+      `;
+      
+      // 将处理后的内容添加到 foreignObject
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = `${styleElement.outerHTML}${processedContent}`;
+      foreignObject.appendChild(wrapper);
+      svg.appendChild(foreignObject);
+
+      // 序列化 SVG
+      const serializer = new XMLSerializer();
+      const svgString = serializer.serializeToString(svg);
+      
+      // 创建下载链接
+      const link = document.createElement('a');
+      link.download = 'exported-with-p-tags.svg';
+      const blob = new Blob([svgString], { type: 'image/svg+xml' });
+      link.href = URL.createObjectURL(blob);
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (error: any) {
+      console.error('导出SVG（P标签版本）失败:', error);
+      alert('导出SVG时发生错误：' + (error?.message || '未知错误'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 处理类名选择变化
   const handleClassSelect = (className: string) => {
     setTargetClass(className);
@@ -1105,6 +1198,17 @@ export default function Home() {
                   } text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200`}
                 >
                   {loading ? '导出中...' : '导出 SVG'}
+                </button>
+                <button
+                  onClick={exportToSvgWithP}
+                  disabled={loading}
+                  className={`w-full ${
+                    loading
+                      ? 'bg-gray-300'
+                      : 'bg-indigo-400 hover:bg-indigo-500 active:bg-indigo-600'
+                  } text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200`}
+                >
+                  {loading ? '导出中...' : '导出 SVG (P标签版)'}
                 </button>
               </div>
             </div>
