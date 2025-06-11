@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import opentype from 'opentype.js';
 
 interface StyleGroups {
   layout: string[];
@@ -923,21 +924,24 @@ export default function Home() {
     }
   };
 
+  // 转换ArrayBuffer为base64
+  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+    const uint8Array = new Uint8Array(buffer);
+    let binaryString = '';
+    uint8Array.forEach(byte => {
+      binaryString += String.fromCharCode(byte);
+    });
+    return btoa(binaryString);
+  };
+
+  // 优化的SVG导出函数
   const exportToSvgWithP = async () => {
     if (!previewRef.current) return;
     try {
       setLoading(true);
 
-      // 等待字体和图标加载
+      // 等待字体加载
       await document.fonts.ready;
-      const fontAwesomeLink = document.querySelector('link[href*="font-awesome"]');
-      if (!fontAwesomeLink) {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
-        document.head.appendChild(link);
-        await new Promise(resolve => link.onload = resolve);
-      }
 
       // 创建一个新的容器
       const container = document.createElement('div');
@@ -946,126 +950,43 @@ export default function Home() {
       container.style.left = '-9999px';
       document.body.appendChild(container);
 
-      // 克隆内容并清理 Vue 相关属性
+      // 克隆内容
       const clone = previewRef.current.cloneNode(true) as HTMLElement;
 
-      // 清理 Vue 相关属性的函数
-      const cleanVueAttributes = (element: Element) => {
-        // 移除所有 Vue 相关属性
-        const attrs = Array.from(element.attributes);
-        attrs.forEach(attr => {
-          if (attr.name.startsWith('v-') || 
-              attr.name.startsWith(':') || 
-              attr.name.startsWith('@') ||
-              attr.name.includes('data-v')) {
-            element.removeAttribute(attr.name);
-          }
-        });
-
-        // 处理子元素
-        Array.from(element.children).forEach(child => {
-          cleanVueAttributes(child);
-        });
-
-        // 如果是空的绑定表达式 {{ }}，替换为空字符串
-        if (element.textContent && element.textContent.trim().match(/^{{.*}}$/)) {
-          element.textContent = '';
-        }
-      };
-
-      // 处理动态绑定的 class
-      const resolveDynamicClasses = (element: Element) => {
-        const dynamicClass = element.getAttribute(':class');
-        if (dynamicClass) {
-          // 如果是 active 类的绑定，根据当前状态确定是否应该有这个类
-          if (dynamicClass.includes('active')) {
-            element.classList.add('active');
-          }
-          element.removeAttribute(':class');
-        }
-      };
-
-      // 清理 Vue 相关属性
+      // 清理Vue相关属性
       cleanVueAttributes(clone);
-
-      // 处理所有元素的动态类
+      
+      // 处理动态类
       const allElements = clone.getElementsByTagName('*');
       Array.from(allElements).forEach(resolveDynamicClasses);
 
-      // 处理客户列表（替换 v-for 生成的内容）
-      const clientsContainer = clone.querySelector('.clients-container');
-      if (clientsContainer) {
-        const clients = [
-          '深圳宝安国际机场', '青岛胶东国际机场', '重庆江北国际机场',
-          '华为东莞基地', '华为坂田基地', '华为团泊洼基地',
-          // ... 其他客户
-        ];
-        clientsContainer.innerHTML = clients.map(client => 
-          `<div class="client-tag">${client}</div>`
-        ).join('');
-      }
-
-      // 处理选项卡（替换 v-for 生成的内容）
-      const tabControls = clone.querySelector('.tab-controls');
-      if (tabControls) {
-        const tabs = ['基本信息', '业务信息', '公司简介'];
-        tabControls.innerHTML = tabs.map((tab, index) => 
-          `<div class="tab${index === 0 ? ' active' : ''}">${tab}</div>`
-        ).join('');
-      }
-
-      // 处理 v-show（根据当前状态确定是否显示）
-      const sections = clone.querySelectorAll('[v-show]');
-      sections.forEach((section: Element) => {
-        const vShow = section.getAttribute('v-show');
-        if (vShow?.includes('activeTab === 0')) {
-          section.removeAttribute('v-show');
-          section.setAttribute('style', 'display: block');
-        } else {
-          section.remove(); // 移除非当前显示的部分
+      // 内联所有样式
+      const inlineStyles = (element: HTMLElement) => {
+        const styles = window.getComputedStyle(element);
+        let inlineStyle = '';
+        
+        // 收集所有非空的样式
+        for (const prop of styles) {
+          const value = styles.getPropertyValue(prop);
+          if (value && value !== 'initial' && value !== 'none') {
+            inlineStyle += `${prop}:${value};`;
+          }
         }
-      });
-
-      container.appendChild(clone);
-
-      // 递归处理元素样式
-      const processElement = (el: Element) => {
-        if (el instanceof HTMLElement) {
-          const styles = window.getComputedStyle(el);
-          
-          // 复制所有重要样式（保持原有的样式处理逻辑）
-          [
-            'padding', 'margin', 'border', 'border-radius',
-            'box-shadow', 'color', 'font-family', 'font-size',
-            'line-height', 'text-align', 'background', 'position',
-            'display', 'align-items', 'justify-content',
-            'flex-direction', 'gap', 'overflow'
-          ].forEach(prop => {
-            const value = styles.getPropertyValue(prop);
-            if (value) el.style.setProperty(prop, value);
-          });
-          
-          // 特别处理渐变背景
-          if (el.classList.contains('header')) {
-            el.style.background = 'linear-gradient(120deg, #405de6, #5851db, #833ab4, #c13584, #e1306c, #fd1d1d)';
-          }
-          
-          // 特别处理图标
-          if (el.classList.contains('fas') || el.classList.contains('far') || el.classList.contains('fab')) {
-            const originalContent = window.getComputedStyle(el, ':before').content;
-            if (originalContent && originalContent !== 'none') {
-              el.style.fontFamily = "'Font Awesome 6 Free', 'Font Awesome 6 Brands'";
-              el.style.fontWeight = '900';
-            }
-          }
+        
+        if (inlineStyle) {
+          element.setAttribute('style', inlineStyle);
         }
 
         // 递归处理子元素
-        Array.from(el.children).forEach(child => processElement(child));
+        Array.from(element.children).forEach(child => {
+          if (child instanceof HTMLElement) {
+            inlineStyles(child);
+          }
+        });
       };
 
-      // 处理所有元素
-      processElement(clone);
+      inlineStyles(clone);
+      container.appendChild(clone);
 
       // 创建SVG
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1074,15 +995,33 @@ export default function Home() {
       svg.setAttribute('height', container.offsetHeight.toString());
       svg.setAttribute('viewBox', `0 0 800 ${container.offsetHeight}`);
 
-      // 添加样式定义
-      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-      const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
-      style.textContent = `
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
-        @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
-      `;
-      defs.appendChild(style);
-      svg.appendChild(defs);
+      // 加载并嵌入字体
+      try {
+        const faFontBuffer = await loadFont('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-solid-900.ttf');
+        const notoFontBuffer = await loadFont('https://fonts.gstatic.com/s/notosanssc/v36/k3kXo84MPvpLmixcA63oeALhL4iJ-Q-m7KaA.ttf');
+
+        // 添加SVG样式
+        const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+        style.textContent = `
+          @font-face {
+            font-family: 'Font Awesome 6 Free';
+            font-style: normal;
+            font-weight: 900;
+            font-display: block;
+            src: url(data:font/ttf;base64,${arrayBufferToBase64(faFontBuffer)}) format('truetype');
+          }
+          @font-face {
+            font-family: 'Noto Sans SC';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url(data:font/ttf;base64,${arrayBufferToBase64(notoFontBuffer)}) format('truetype');
+          }
+        `;
+        svg.appendChild(style);
+      } catch (error) {
+        console.warn('加载字体失败:', error);
+      }
 
       // 创建 foreignObject
       const foreignObject = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
@@ -1091,27 +1030,29 @@ export default function Home() {
       foreignObject.setAttribute('x', '0');
       foreignObject.setAttribute('y', '0');
 
-      // 添加内容到 foreignObject
-      const innerHtml = clone.outerHTML
-        .replace(/\sv-[\w-]+="[^"]*"/g, '') // 移除任何残留的 Vue 指令
-        .replace(/\s:[\w-]+="[^"]*"/g, '') // 移除任何残留的 Vue 绑定
-        .replace(/\s@[\w-]+="[^"]*"/g, ''); // 移除任何残留的 Vue 事件
-      foreignObject.innerHTML = innerHtml;
+      // 处理所有文本节点
+      await processTextToPath(clone);
 
+      // 添加处理后的内容到 foreignObject
+      foreignObject.innerHTML = clone.outerHTML;
       svg.appendChild(foreignObject);
 
       // 序列化 SVG
       const serializer = new XMLSerializer();
       let svgString = serializer.serializeToString(svg);
 
-      // 添加 XML 声明
+      // 清理SVG字符串中的外部依赖
+      svgString = svgString.replace(/<link[^>]*>/g, '');
+      svgString = svgString.replace(/@import[^;]*;/g, '');
+
+      // 添加XML声明
       svgString = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 ${svgString}`;
 
       // 创建下载链接
       const link = document.createElement('a');
-      link.download = 'exported-with-styles.svg';
+      link.download = 'exported-standalone.svg';
       const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
       link.href = URL.createObjectURL(blob);
       link.click();
@@ -1124,6 +1065,230 @@ ${svgString}`;
       alert('导出SVG时发生错误：' + (error?.message || '未知错误'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 清理 Vue 相关属性的函数
+  const cleanVueAttributes = (element: Element) => {
+    // 移除所有 Vue 相关属性
+    const attrs = Array.from(element.attributes);
+    attrs.forEach(attr => {
+      if (attr.name.startsWith('v-') || 
+          attr.name.startsWith(':') || 
+          attr.name.startsWith('@') ||
+          attr.name.includes('data-v')) {
+        element.removeAttribute(attr.name);
+      }
+    });
+
+    // 处理子元素
+    Array.from(element.children).forEach(child => {
+      cleanVueAttributes(child);
+    });
+
+    // 如果是空的绑定表达式 {{ }}，替换为空字符串
+    if (element.textContent && element.textContent.trim().match(/^{{.*}}$/)) {
+      element.textContent = '';
+    }
+  };
+
+  // 处理动态绑定的 class
+  const resolveDynamicClasses = (element: Element) => {
+    const dynamicClass = element.getAttribute(':class');
+    if (dynamicClass) {
+      // 如果是 active 类的绑定，根据当前状态确定是否应该有这个类
+      if (dynamicClass.includes('active')) {
+        element.classList.add('active');
+      }
+      element.removeAttribute(':class');
+    }
+  };
+
+  // 获取 Font Awesome 图标的 SVG 路径
+  const getIconPath = async (element: Element): Promise<string | null> => {
+    try {
+      // 获取图标的 Unicode
+      const iconClass = Array.from(element.classList)
+        .find(cls => cls.startsWith('fa-'))
+        ?.substring(3);
+      
+      if (!iconClass) return null;
+
+      // 从 Font Awesome 获取 SVG 数据
+      const response = await fetch(`https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/${iconClass}.svg`);
+      if (!response.ok) return null;
+
+      const svgText = await response.text();
+      const pathMatch = svgText.match(/<path[^>]*d="([^"]*)"[^>]*>/);
+      return pathMatch ? pathMatch[1] : null;
+    } catch (error) {
+      console.warn('获取图标路径失败:', error);
+      return null;
+    }
+  };
+
+  // 定义路径命令的类型
+  type PathCommandBase = {
+    type: string;
+  };
+
+  type MoveCommand = PathCommandBase & {
+    type: 'M';
+    x: number;
+    y: number;
+  };
+
+  type LineCommand = PathCommandBase & {
+    type: 'L';
+    x: number;
+    y: number;
+  };
+
+  type CurveCommand = PathCommandBase & {
+    type: 'C';
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    x: number;
+    y: number;
+  };
+
+  type QuadCommand = PathCommandBase & {
+    type: 'Q';
+    x1: number;
+    y1: number;
+    x: number;
+    y: number;
+  };
+
+  type CloseCommand = PathCommandBase & {
+    type: 'Z';
+  };
+
+  type PathCommand = MoveCommand | LineCommand | CurveCommand | QuadCommand | CloseCommand;
+
+  // 加载字体文件
+  const loadFont = async (url: string): Promise<ArrayBuffer> => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Failed to load font: ${url}`);
+    return await response.arrayBuffer();
+  };
+
+  // 更新文本转路径函数
+  const textToPath = async (text: string, style: CSSStyleDeclaration): Promise<string> => {
+    try {
+      // 确定字体URL
+      const fontUrl = style.fontFamily.includes('Font Awesome') 
+        ? 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-solid-900.ttf'
+        : 'https://fonts.gstatic.com/s/notosanssc/v36/k3kXo84MPvpLmixcA63oeALhL4iJ-Q-m7KaA.ttf';
+
+      // 加载字体数据
+      const fontData = await loadFont(fontUrl);
+      const font = await opentype.parse(fontData);
+      
+      const fontSize = parseFloat(style.fontSize);
+      const path = font.getPath(text, 0, 0, fontSize);
+      
+      // 应用字体权重
+      if (style.fontWeight !== 'normal' && style.fontWeight !== '400') {
+        path.commands.forEach((cmd: any) => {
+          const weight = parseInt(style.fontWeight) / 400;
+          if (cmd.type !== 'Z') {
+            cmd.x *= weight;
+            cmd.y *= weight;
+          }
+          
+          // 只处理贝塞尔曲线的控制点
+          if (cmd.type === 'C') {
+            cmd.x1 *= weight;
+            cmd.y1 *= weight;
+            cmd.x2 *= weight;
+            cmd.y2 *= weight;
+          } else if (cmd.type === 'Q') {
+            cmd.x1 *= weight;
+            cmd.y1 *= weight;
+          }
+        });
+      }
+      
+      return path.toPathData(2);
+    } catch (error) {
+      console.warn('文本转路径失败:', error);
+      return '';
+    }
+  };
+
+  // 进一步优化处理文本到路径的转换
+  const processTextToPath = async (el: Element) => {
+    if (el instanceof HTMLElement) {
+      const styles = window.getComputedStyle(el);
+      const text = el.innerText;
+      
+      if (text && text.trim()) {
+        try {
+          const pathData = await textToPath(text, styles);
+          if (pathData) {
+            // 创建SVG文本容器
+            const textContainer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            textContainer.setAttribute('fill', styles.color);
+            
+            // 创建实际的路径
+            const svgPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            svgPath.setAttribute('d', pathData);
+            
+            // 应用文本装饰（如下划线）
+            if (styles.textDecoration.includes('underline')) {
+              const underline = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+              const fontSize = parseFloat(styles.fontSize);
+              underline.setAttribute('d', `M0 ${fontSize * 1.1} H${el.offsetWidth}`);
+              underline.setAttribute('stroke', styles.color);
+              underline.setAttribute('stroke-width', '1');
+              textContainer.appendChild(underline);
+            }
+            
+            // 添加路径到容器
+            textContainer.appendChild(svgPath);
+            
+            // 设置变换以正确定位文本
+            textContainer.setAttribute('transform', 
+              `translate(${el.offsetLeft},${el.offsetTop + parseFloat(styles.fontSize)})`
+            );
+            
+            // 替换原始内容
+            el.innerHTML = '';
+            el.appendChild(textContainer);
+          }
+        } catch (error) {
+          console.warn('处理文本转路径失败:', error);
+        }
+      }
+
+      // 优化内联样式处理
+      const relevantStyles = [
+        'position', 'top', 'left', 'right', 'bottom',
+        'display', 'margin', 'padding', 'width', 'height',
+        'background', 'border', 'box-shadow',
+        'opacity', 'visibility', 'z-index',
+        'transform', 'transition'
+      ];
+
+      let inlineStyle = relevantStyles
+        .map(prop => {
+          const value = styles.getPropertyValue(prop);
+          return value ? `${prop}:${value};` : '';
+        })
+        .filter(Boolean)
+        .join('');
+
+      if (inlineStyle) {
+        el.setAttribute('style', inlineStyle);
+      }
+    }
+
+    // 递归处理子元素
+    for (const child of el.children) {
+      await processTextToPath(child);
     }
   };
 
