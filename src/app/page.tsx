@@ -961,28 +961,32 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen p-4">
-      <div className="container mx-auto">
-        <h1 className="text-2xl font-bold mb-4">HTML 转 PDF 工具</h1>
-        <div className="mb-4">
-          <label htmlFor="targetClass" className="block text-sm font-medium text-gray-700 mb-1">
-            要导出的元素类名
+    <main className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold text-blue-800 mb-8 text-center">
+          HTML 转换工具
+          <span className="block text-sm font-normal text-blue-600 mt-2">支持导出 PDF、JPG、SVG 格式</span>
+        </h1>
+        
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+          <label htmlFor="targetClass" className="text-blue-900 font-medium mb-2 block">
+            选择要导出的元素
           </label>
-          <div className="flex gap-2">
-            <div className="flex-1 flex gap-2">
+          <div className="flex gap-4 items-start">
+            <div className="flex-1 space-y-2">
               <input
                 type="text"
                 id="targetClass"
                 value={targetClass}
                 onChange={(e) => handleClassSelect(e.target.value)}
-                className="w-1/2 p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full p-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
                 placeholder="输入要导出的元素的类名"
                 list="class-suggestions"
               />
               <select
                 value={targetClass}
                 onChange={(e) => handleClassSelect(e.target.value)}
-                className="w-1/2 p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full p-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 bg-white transition-all"
               >
                 <option value="">-- 选择类名 --</option>
                 {availableClasses.map((className) => (
@@ -992,34 +996,39 @@ export default function Home() {
                 ))}
               </select>
             </div>
-            <div className="text-sm text-gray-500 flex items-center whitespace-nowrap">
+            <div className="text-sm text-blue-600 pt-3 whitespace-nowrap">
               留空则导出所有内容
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="border rounded-lg overflow-hidden">
-            <div className="bg-gray-100 p-2 border-b">
-              <h2 className="font-semibold">HTML 代码</h2>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div className="bg-blue-700 text-white p-4 flex items-center">
+              <h2 className="font-medium">HTML 编辑器</h2>
             </div>
-            <Editor
-              height="400px"
-              defaultLanguage="html"
-              value={htmlCode}
-              onChange={handleEditorChange}
-              options={{
-                minimap: { enabled: false },
-                lineNumbers: 'on',
-                scrollBeyondLastLine: false,
-                wordWrap: 'on',
-                automaticLayout: true,
-              }}
-            />
+            <div className="border border-blue-100">
+              <Editor
+                height="500px"
+                defaultLanguage="html"
+                value={htmlCode}
+                onChange={handleEditorChange}
+                options={{
+                  minimap: { enabled: false },
+                  lineNumbers: 'on',
+                  scrollBeyondLastLine: false,
+                  wordWrap: 'on',
+                  automaticLayout: true,
+                  theme: 'light',
+                }}
+              />
+            </div>
           </div>
-          <div>
-            <div className="border rounded-lg">
-              <div className="bg-gray-100 p-2 border-b flex justify-between items-center">
-                <h2 className="font-semibold">预览</h2>
+
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <div className="bg-blue-700 text-white p-4 flex justify-between items-center">
+                <h2 className="font-medium">实时预览</h2>
                 {previewOnly && (
                   <button
                     onClick={() => {
@@ -1027,47 +1036,65 @@ export default function Home() {
                       setTargetClass('');
                       updatePreview(htmlCode);
                     }}
-                    className="text-sm text-blue-500 hover:text-blue-700"
+                    className="text-sm text-blue-100 hover:text-white transition-colors"
                   >
                     显示完整预览
                   </button>
                 )}
               </div>
-              <div className="p-4">
+              <div className="p-6">
                 <div
                   ref={previewRef}
-                  className="border p-4 rounded min-h-[400px]"
+                  className="border border-blue-100 rounded-lg p-6 min-h-[500px]"
                 />
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
+
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="space-y-4">
                 <button
                   onClick={generateStaticHtml}
                   disabled={loading}
-                  className={`w-full ${loading ? 'bg-gray-400' : 'bg-green-500 hover:bg-green-600'} text-white font-semibold py-2 px-4 rounded transition-colors`}
+                  className={`w-full ${
+                    loading
+                      ? 'bg-gray-300'
+                      : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+                  } text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200`}
                 >
-                  {loading ? '处理中...' : '生成静态HTML'}
+                  {loading ? '处理中...' : '生成静态 HTML'}
                 </button>
-                <div className="grid grid-cols-3 gap-2">
+                
+                <div className="grid grid-cols-3 gap-4">
                   <button
                     onClick={exportToPdf}
                     disabled={loading}
-                    className={`w-full ${loading ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'} text-white font-semibold py-2 px-4 rounded transition-colors`}
+                    className={`w-full ${
+                      loading
+                        ? 'bg-gray-300'
+                        : 'bg-blue-500 hover:bg-blue-600 active:bg-blue-700'
+                    } text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200`}
                   >
                     {loading ? '导出中...' : '导出 PDF'}
                   </button>
                   <button
                     onClick={exportToJpg}
                     disabled={loading}
-                    className={`w-full ${loading ? 'bg-gray-400' : 'bg-purple-500 hover:bg-purple-600'} text-white font-semibold py-2 px-4 rounded transition-colors`}
+                    className={`w-full ${
+                      loading
+                        ? 'bg-gray-300'
+                        : 'bg-blue-400 hover:bg-blue-500 active:bg-blue-600'
+                    } text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200`}
                   >
                     {loading ? '导出中...' : '导出 JPG'}
                   </button>
                   <button
                     onClick={exportToSvg}
                     disabled={loading}
-                    className={`w-full ${loading ? 'bg-gray-400' : 'bg-pink-500 hover:bg-pink-600'} text-white font-semibold py-2 px-4 rounded transition-colors`}
+                    className={`w-full ${
+                      loading
+                        ? 'bg-gray-300'
+                        : 'bg-blue-400 hover:bg-blue-500 active:bg-blue-600'
+                    } text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200`}
                   >
                     {loading ? '导出中...' : '导出 SVG'}
                   </button>
